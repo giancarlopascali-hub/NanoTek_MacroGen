@@ -40,33 +40,35 @@ This application is ready to run as a **Hugging Face Docker Space** using a ligh
 
    #### Option A: Sync via GitHub Actions (Recommended)
    This automatically redeploys your app to Hugging Face whenever you push changes to GitHub.
-   - On Hugging Face, go to your Space settings, find the **Hugging Face Token** section, and generate a write-access token (e.g. named `HF_TOKEN`).
+   - On Hugging Face, go to your Space settings (or Access Tokens page) and generate a write-access token (e.g. named `HF_TOKEN`).
    - In your GitHub Repository (`NanoTek_MacroGen`), go to **Settings > Secrets and variables > Actions** and add a secret named `HF_TOKEN` containing your Hugging Face token value.
-   - Create a file in your github repo at `.github/workflows/deploy.yml` with the following contents:
+   - The `.github/workflows/deploy.yml` file is already pre-configured to automatically run on push to the `main` branch. It executes:
      ```yaml
-     name: Deploy to Hugging Face Spaces
+     name: Sync with Hugging Face Spaces
      on:
        push:
          branches: [ main ]
      jobs:
-       deploy:
+       sync-to-hub:
          runs-on: ubuntu-latest
          steps:
            - uses: actions/checkout@v4
              with:
                fetch-depth: 0
-           - name: Push to HF Space Hub
-             run: git push --force https://giancarlopascali-hub:${{ secrets.HF_TOKEN }}@huggingface.co/spaces/giancarlopascali-hub/NanoTek_MacroGen main
+           - name: Push to Hugging Face Spaces
+             env:
+               HF_TOKEN: ${{ secrets.HF_TOKEN }}
+             run: |
+               git push --force https://realgcp:$HF_TOKEN@huggingface.co/spaces/realgcp/NanoTek-MacroGen main:main
      ```
-     *(Note: Replace `giancarlopascali-hub/NanoTek_MacroGen` in the URL with your Hugging Face username and Space name if different)*.
 
    #### Option B: Setup directly via Git command line
    Alternatively, add Hugging Face as a second Git remote and push directly:
    ```bash
    # Add the Hugging Face Space repository as a remote
-   git remote add hf https://huggingface.co/spaces/YOUR_HF_USERNAME/YOUR_SPACE_NAME
+   git remote add hf https://huggingface.co/spaces/realgcp/NanoTek-MacroGen
 
-   # Push to Hugging Face (you will be prompted to enter your Hugging Face username and token as the password)
+   # Push force to Hugging Face (use your username realgcp & HF Token as the password)
    git push -f hf main
    ```
 
