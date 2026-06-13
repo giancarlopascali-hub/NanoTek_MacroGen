@@ -56,7 +56,7 @@ export default function ValidationSidebar({
   const estimatedSecs = Math.floor((totalWaitMs % 60000) / 1000);
 
   return (
-    <div className="w-64 bg-white border-l border-gray-200 p-4 flex flex-col shrink-0 overflow-y-auto">
+    <div className="w-full h-full p-4 flex flex-col min-h-0 overflow-y-auto">
       <h2 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">
         Active Validation & Audits
       </h2>

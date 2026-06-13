@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { PumpConfig, FluidicsConfig, AUXState, LogLine } from "./types";
-import { Play, Code, ShieldCheck, Cpu, Terminal, Sparkles, BookOpen, Settings, Flame } from "lucide-react";
+import { Play, Code, ShieldCheck, Cpu, Terminal, Sparkles, BookOpen, Settings, Flame, ChevronUp, ChevronDown } from "lucide-react";
 import FluidicSchematic from "./components/FluidicSchematic";
 import SyntaxExplorer from "./components/SyntaxExplorer";
 import PumpConfigurator from "./components/PumpConfigurator";
@@ -11,6 +11,9 @@ import ValidationSidebar from "./components/ValidationSidebar";
 export default function App() {
   // Tabs: "System", "Reaction", "Macro"
   const [activeTab, setActiveTab] = useState<"System" | "Reaction" | "Macro">("System");
+
+  // Console toggle state (defaults to closed/down per user intent)
+  const [isConsoleOpen, setIsConsoleOpen] = useState<boolean>(false);
 
   // Pumps state (P1 to P4)
   const [pumps, setPumps] = useState<PumpConfig[]>([
@@ -970,7 +973,7 @@ export default function App() {
         </main>
 
         {/* Right Sidebar validation parameter audits */}
-        <aside className="w-64 bg-white border-l border-gray-200 flex flex-col shrink-0">
+        <aside className="w-64 bg-white border-l border-gray-200 flex flex-col shrink-0 min-h-0 h-full overflow-hidden">
           <ValidationSidebar
             pumps={pumps}
             fluidics={fluidics}
@@ -992,44 +995,58 @@ export default function App() {
       )}
 
       {/* Bottom Terminal Output Console logs (Exact Polish match) */}
-      <footer className="h-44 bg-[#f1f1f1] border-t border-gray-300 flex flex-col shrink-0 z-10">
-        <div className="h-8 border-b border-gray-200 flex items-center justify-between px-4 bg-gray-200 shrink-0">
+      <footer className={`${isConsoleOpen ? "h-44" : "h-8"} bg-[#f1f1f1] border-t border-gray-300 flex flex-col shrink-0 z-10 transition-all duration-300`}>
+        <div 
+          onClick={() => setIsConsoleOpen(!isConsoleOpen)}
+          className="h-8 border-b border-gray-200 flex items-center justify-between px-4 bg-gray-200 shrink-0 cursor-pointer hover:bg-gray-300 select-none"
+        >
           <div className="flex items-center gap-4">
             <button className="text-[11px] font-bold text-gray-700 border-b-2 border-blue-600 h-full px-2 flex items-center gap-1">
               <Terminal className="w-3 h-3" />
               Output Console Logs
             </button>
             <span className="text-[10px] text-gray-400 font-medium font-mono">
-              Live Standalone Emulator Running
+              Live Standalone Emulator Running (Click header to toggle)
             </span>
           </div>
 
-          <button
-            onClick={() => {
-              setConsoleLogs([]);
-              addLog("Console timeline cleaned.", "warning");
-            }}
-            className="text-[10px] font-medium text-gray-500 hover:text-gray-800"
-          >
-            Clear logs
-          </button>
+          <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => {
+                setConsoleLogs([]);
+                addLog("Console timeline cleaned.", "warning");
+              }}
+              className="text-[10px] font-medium text-gray-500 hover:text-gray-800 px-2 py-0.5 rounded hover:bg-black/5"
+            >
+              Clear logs
+            </button>
+            <button
+              onClick={() => setIsConsoleOpen(!isConsoleOpen)}
+              className="text-gray-500 hover:text-gray-800 p-1 flex items-center justify-center rounded hover:bg-black/5"
+              title={isConsoleOpen ? "Collapse Console" : "Expand Console"}
+            >
+              {isConsoleOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+            </button>
+          </div>
         </div>
 
-        <div className="p-3 font-mono text-[11px] space-y-1 overflow-y-auto bg-[#fafafa] flex-1">
-          {consoleLogs.map((log, idx) => {
-            let colorCls = "text-gray-700";
-            if (log.type === "success") colorCls = "text-emerald-600 font-semibold";
-            if (log.type === "error") colorCls = "text-red-600 font-bold";
-            if (log.type === "warning") colorCls = "text-amber-600 font-medium";
+        {isConsoleOpen && (
+          <div className="p-3 font-mono text-[11px] space-y-1 overflow-y-auto bg-[#fafafa] flex-1">
+            {consoleLogs.map((log, idx) => {
+              let colorCls = "text-gray-700";
+              if (log.type === "success") colorCls = "text-emerald-600 font-semibold";
+              if (log.type === "error") colorCls = "text-red-600 font-bold";
+              if (log.type === "warning") colorCls = "text-amber-600 font-medium";
 
-            return (
-              <p key={idx} className={colorCls}>
-                <span className="text-gray-400 select-none mr-2">[{log.timestamp}]</span>
-                {log.message}
-              </p>
-            );
-          })}
-        </div>
+              return (
+                <p key={idx} className={colorCls}>
+                  <span className="text-gray-400 select-none mr-2">[{log.timestamp}]</span>
+                  {log.message}
+                </p>
+              );
+            })}
+          </div>
+        )}
       </footer>
     </div>
   );
