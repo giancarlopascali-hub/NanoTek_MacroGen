@@ -1,0 +1,29 @@
+name: Sync with Hugging Face Spaces
+
+on:
+  push:
+    branches: [ main ]
+  # Allow manual trigger from GitHub Actions tab
+  workflow_dispatch:
+
+jobs:
+  sync-to-hub:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      - name: Push to Hugging Face Spaces
+        uses: huggingface/github-action@v1
+        with:
+          # Your Hugging Face fine-grained or write token stored in GitHub Secrets
+          hf_token: ${{ secrets.HF_TOKEN }}
+          # The ID of your Space (e.g. USERNAME/SPACE_NAME)
+          repo_id: giancarlopascali-hub/NanoTek_MacroGen
+          # We are deploying a Space
+          repo_type: space
+          # The directory to upload (upload everything)
+          publishing_dir: .
