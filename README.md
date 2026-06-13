@@ -1,8 +1,8 @@
 ---
 title: NanoTek MacroGen
 emoji: 🧪
-colorFrom: emerald
-colorTo: slate
+colorFrom: green
+colorTo: gray
 sdk: docker
 pinned: false
 ---
