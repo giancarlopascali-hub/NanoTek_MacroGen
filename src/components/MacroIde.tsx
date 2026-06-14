@@ -95,6 +95,22 @@ export default function MacroIde({
         <textarea
           value={content}
           onChange={(e) => onChangeContent(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Tab") {
+              e.preventDefault();
+              const target = e.currentTarget;
+              const start = target.selectionStart;
+              const end = target.selectionEnd;
+              const val = target.value;
+              const newVal = val.substring(0, start) + "\t" + val.substring(end);
+              onChangeContent(newVal);
+              
+              // Move cursor forward by one tab
+              setTimeout(() => {
+                target.selectionStart = target.selectionEnd = start + 1;
+              }, 0);
+            }
+          }}
           placeholder={`// Advion NanoTek standard script editor zone.\n// Click "Build Macro Block" under Reaction Settings to append dynamic code blocks,\n// or edit synthesis commands manually using the reference on the left.`}
           className="flex-1 w-full bg-[#1e1e1e] text-[#d4d4d4] caret-blue-500 font-mono text-xs leading-6 p-3 outline-none focus:outline-none resize-none overflow-y-auto block whitespace-pre"
           style={{ height: "100%", tabSize: 4 }}

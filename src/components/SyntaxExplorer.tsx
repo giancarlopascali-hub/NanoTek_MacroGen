@@ -73,9 +73,18 @@ export default function SyntaxExplorer({
     }
   };
 
+  const handleConcatPumpLine = () => {
+    if (onConcatCommand) {
+      const code = getPumpCommandCode();
+      if (!code.startsWith("#")) {
+        onConcatCommand(code);
+      }
+    }
+  };
+
   // 2. OTHER CODE COMMAND STATE
   const [otherCmdType, setOtherCmdType] = useState<
-    "Heater temp" | "DH port" | "Digital output" | "Analog output" | "Pause" | "R" | "Wait"
+    "Heater temp" | "DH port" | "Digital output" | "Digital output (Pump)" | "Analog output" | "Pause" | "R" | "Wait"
   >("Heater temp");
 
   // Specific arguments
@@ -85,6 +94,10 @@ export default function SyntaxExplorer({
   const [digitalPin, setDigitalPin] = useState<string>("AUX1");
   const [digitalState, setDigitalState] = useState<string>("TRUE");
   const [analogVoltage, setAnalogVoltage] = useState<string>("2.5");
+  const [analogOutputIdx, setAnalogOutputIdx] = useState<string>("1");
+  const [pumpOutputId, setPumpOutputId] = useState<number>(1);
+  const [pumpOutputPin, setPumpOutputPin] = useState<string>("1");
+  const [pumpOutputState, setPumpOutputState] = useState<string>("1");
   const [pauseMs, setPauseMs] = useState<string>("1000");
   const [waitPrompt, setWaitPrompt] = useState<string>("Start reaction, place a new collection vial");
 
@@ -102,8 +115,14 @@ export default function SyntaxExplorer({
       case "Digital output":
         return `${digitalPin} ${digitalState}`;
 
+      case "Digital output (Pump)": {
+        const targetPump = pumps.find((p) => p.id === pumpOutputId);
+        const addr = targetPump && targetPump.addr !== "0" && targetPump.addr.trim() !== "" ? targetPump.addr : `${pumpOutputId}`;
+        return `/${addr}u${pumpOutputPin},${pumpOutputState}R`;
+      }
+
       case "Analog output":
-        return `ANALOG ${analogVoltage}V`;
+        return `ANALOG${analogOutputIdx} ${analogVoltage}V`;
 
       case "Pause":
         return `M${pauseMs}`;
@@ -296,14 +315,25 @@ export default function SyntaxExplorer({
           {getPumpCommandCode()}
         </div>
 
-        <button
-          onClick={handleInsertPumpLine}
-          disabled={selectedPump.addr === "0"}
-          className="w-full py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-bold transition-all text-xs flex items-center justify-center gap-1 px-2 shadow-sm disabled:opacity-50"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          Append Pump Command
-        </button>
+        {/* Append or Concatenate buttons */}
+        <div className="grid grid-cols-2 gap-2 pt-1">
+          <button
+            onClick={handleInsertPumpLine}
+            disabled={selectedPump.addr === "0"}
+            className="py-1.5 border border-blue-600 hover:bg-blue-50 text-blue-800 rounded font-bold transition-all text-[11px] flex items-center justify-center gap-1 disabled:opacity-50"
+          >
+            <Plus className="w-3.5 h-3.5 text-blue-600" />
+            Append Line
+          </button>
+          <button
+            onClick={handleConcatPumpLine}
+            disabled={selectedPump.addr === "0"}
+            className="py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-bold transition-all text-[11px] flex items-center justify-center gap-1 shadow-sm disabled:opacity-50"
+          >
+            <CornerDownRight className="w-3.5 h-3.5" />
+            Concatenate
+          </button>
+        </div>
       </div>
 
       {/* 2. OTHER CODE COMMAND COMPONENT */}
@@ -326,6 +356,7 @@ export default function SyntaxExplorer({
             <option value="Heater temp">Heater temp</option>
             <option value="DH port">DH port (Distribution Hub)</option>
             <option value="Digital output">Digital output (AUX)</option>
+            <option value="Digital output (Pump)">Digital output (Pump)</option>
             <option value="Analog output">Analog output</option>
             <option value="Pause">Pause (M Delay)</option>
             <option value="Wait">Wait (Manual Prompt)</option>
@@ -414,20 +445,82 @@ export default function SyntaxExplorer({
             </div>
           )}
 
+          {otherCmdType === "Digital output (Pump)" && (
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[9px] text-gray-500 uppercase font-bold mb-0.5">Trigger Pump</label>
+                  <select
+                    value={pumpOutputId}
+                    onChange={(e) => setPumpOutputId(Number(e.target.value))}
+                    className="w-full bg-white border border-gray-300 rounded px-1 py-0.5"
+                  >
+                    {pumps.map((p) => {
+                      const isDisconnected = p.addr === "0" || p.addr.trim() === "";
+                      return (
+                        <option key={p.id} value={p.id} disabled={isDisconnected}>
+                          P{p.id} {isDisconnected ? "(unassigned)" : `(Address ${p.addr})`}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[9px] text-gray-500 uppercase font-bold mb-0.5">Dig Output Pin</label>
+                  <select
+                    value={pumpOutputPin}
+                    onChange={(e) => setPumpOutputPin(e.target.value)}
+                    className="w-full bg-white border border-gray-300 rounded px-1 py-0.5"
+                  >
+                    <option value="1">Output 1</option>
+                    <option value="2">Output 2</option>
+                    <option value="3">Output 3</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-[9px] text-gray-500 uppercase font-bold mb-0.5">Pin State</label>
+                <select
+                  value={pumpOutputState}
+                  onChange={(e) => setPumpOutputState(e.target.value)}
+                  className="w-full bg-white border border-gray-300 rounded px-1 py-0.5 text-xs font-semibold"
+                >
+                  <option value="1">1 (ON / HIGH)</option>
+                  <option value="0">0 (OFF / LOW)</option>
+                </select>
+              </div>
+            </div>
+          )}
+
           {otherCmdType === "Analog output" && (
-            <div>
-              <label className="block text-[9px] text-gray-500 uppercase font-bold mb-0.5">
-                Voltage Level (0 - 5 V)
-              </label>
-              <input
-                type="number"
-                min="0"
-                max="5"
-                step="0.1"
-                value={analogVoltage}
-                onChange={(e) => setAnalogVoltage(e.target.value)}
-                className="w-full bg-white border border-gray-300 rounded px-1.5 py-0.5 font-mono text-xs"
-              />
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[9px] text-gray-500 uppercase font-bold mb-0.5">
+                  Analog output
+                </label>
+                <select
+                  value={analogOutputIdx}
+                  onChange={(e) => setAnalogOutputIdx(e.target.value)}
+                  className="w-full bg-white border border-gray-300 rounded px-1 py-0.5 text-xs"
+                >
+                  <option value="1">Analog Output 1</option>
+                  <option value="2">Analog Output 2</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[9px] text-gray-500 uppercase font-bold mb-0.5">
+                  Voltage Level (0-5 V)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="5"
+                  step="0.1"
+                  value={analogVoltage}
+                  onChange={(e) => setAnalogVoltage(e.target.value)}
+                  className="w-full bg-white border border-gray-300 rounded px-1.5 py-0.5 font-mono text-xs"
+                />
+              </div>
             </div>
           )}
 

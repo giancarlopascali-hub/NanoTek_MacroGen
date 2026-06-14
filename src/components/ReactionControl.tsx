@@ -140,7 +140,7 @@ export default function ReactionControl({
                 <div className="grid grid-cols-1 gap-2">
                   {r1Pumps.map((pump) => {
                     const rowData = reactionData["R1"]?.[pump.id] || { vol: "0.00", fr: "0.00" };
-                    const isSw = pump.sweep === "Yes";
+                    const isSw = pump.sweep === "Yes" && isTwoStep;
                     return (
                       <div
                         key={pump.id}
@@ -150,7 +150,7 @@ export default function ReactionControl({
                       >
                         <div className="flex items-center gap-2 text-xs">
                           <span className={`w-5 h-5 rounded font-semibold flex items-center justify-center font-mono ${
-                            isSw ? "bg-purple-100 text-purple-800" : "bg-blue-100 text-blue-800"
+                            isSw ? "bg-purple-100 text-purple-800" : "bg-emerald-100 text-emerald-800"
                           }`}>
                             P{pump.id}
                           </span>
@@ -286,7 +286,7 @@ export default function ReactionControl({
                         <div className="flex items-center gap-2 text-xs">
                           <span
                             className={`w-5 h-5 rounded font-semibold flex items-center justify-center font-mono ${
-                              isSw ? "bg-purple-100 text-purple-800" : "bg-blue-100 text-blue-800"
+                              isSw ? "bg-purple-100 text-purple-800" : "bg-emerald-100 text-emerald-800"
                             }`}
                           >
                             P{pump.id}

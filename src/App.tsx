@@ -222,10 +222,91 @@ export default function App() {
     // 1. Double check loop limit before committing
     if (field === "vol") {
       const targetPump = pumps.find((p) => p.id === pid);
-      if (targetPump && Number(value) > targetPump.loopVol && targetPump.sweep === "No") {
-        triggerToast(`Pump ${pid} volume request exceeds static loop capacity (${targetPump.loopVol}µL)!`);
-        value = "0.00";
+      if (targetPump) {
+        const isOneStep = fluidics.reactor2Vol <= 0;
+        const isReactantCheck = targetPump.sweep === "No" || (targetPump.sweep === "Yes" && isOneStep);
+        if (isReactantCheck && Number(value) > targetPump.loopVol) {
+          triggerToast(`Pump ${pid} volume request exceeds static loop capacity (${targetPump.loopVol}µL)!`);
+          return; // Reject update and retain last known accepted value
+        }
       }
+    }
+
+    // Pre-calculate proposed state to verify safety bounds including leftover loop capacity
+    const proposedState = {
+      ...reactionData,
+      [rid]: {
+        ...reactionData[rid],
+        [pid]: {
+          ...reactionData[rid]?.[pid],
+          [field]: value
+        }
+      }
+    };
+
+    // If Reactor 1 reactant volume was updated in 2-step mode, simulate R2 Sweep volume sync
+    const isOneStep = fluidics.reactor2Vol <= 0;
+    if (rid === "R1" && field === "vol" && !isOneStep) {
+      let bolus1Val = 0;
+      pumps.forEach((p) => {
+        if (p.addr !== "0" && p.assignedReactor === "Reactor 1") {
+          const vStr = p.id === pid ? value : (proposedState["R1"]?.[p.id]?.vol || "0");
+          bolus1Val += Number(vStr) || 0;
+        }
+      });
+      const bolus1Formatted = bolus1Val.toFixed(2);
+      const swPump = pumps.find((p) => p.addr !== "0" && p.sweep === "Yes");
+      if (swPump && proposedState["R2"]?.[swPump.id]) {
+        proposedState["R2"] = {
+          ...proposedState["R2"],
+          [swPump.id]: {
+            ...proposedState["R2"][swPump.id],
+            vol: bolus1Formatted
+          }
+        };
+      }
+    }
+
+    // Evaluate proposed state against leftover loop capacities (remaining capacity = total loop volume - already used)
+    const currentUsedVols = getUsedLoopVolumes(macroContent);
+    const activePumps = pumps.filter((p) => p.addr !== "0" && p.addr.trim() !== "");
+
+    let hasOverflow = false;
+    let overflowMsg = "";
+
+    if (isOneStep) {
+      // 1-step loop capacity leftover check (includes the sweep pump)
+      for (const p of activePumps) {
+        const pVol = parseFloat(proposedState["R1"]?.[p.id]?.vol || "0") || 0;
+        const used = currentUsedVols[p.id] || 0;
+        const leftover = p.loopVol - used;
+        if (pVol > leftover) {
+          hasOverflow = true;
+          overflowMsg = `1-Step Loop Capacity overflow on Pump P${p.id}! Requested ${pVol.toFixed(1)} µL but only ${leftover.toFixed(1)} µL is left in the loop.`;
+          break;
+        }
+      }
+    } else {
+      // 2-step loop capacity leftover check
+      for (const p of activePumps) {
+        if (p.sweep === "Yes") continue;
+        const r1Vol = parseFloat(proposedState["R1"]?.[p.id]?.vol || "0") || 0;
+        const r2Vol = parseFloat(proposedState["R2"]?.[p.id]?.vol || "0") || 0;
+        const plannedVol = r1Vol + r2Vol;
+        const used = currentUsedVols[p.id] || 0;
+        const leftover = p.loopVol - used;
+        if (plannedVol > leftover) {
+          hasOverflow = true;
+          overflowMsg = `2-Step Loop Capacity overflow on Pump P${p.id}! Total requested (Stage 1 + Stage 2) is ${plannedVol.toFixed(1)} µL but only ${leftover.toFixed(1)} µL is left in the loop.`;
+          break;
+        }
+      }
+    }
+
+    if (hasOverflow) {
+      triggerToast(overflowMsg);
+      addLog(`Safety Block: Input value rejected / reverted. ${overflowMsg}`, "error");
+      return; // Do not apply the update (reverts input state)
     }
 
     setReactionData((prev) => {
@@ -233,7 +314,7 @@ export default function App() {
       const current = { ...targetState[pid], [field]: value };
       targetState[pid] = current;
 
-      // 2. Perform automated Delivery Duration synchronization across channels
+      // Perform automated Delivery Duration synchronization across channels
       const volVal = field === "vol" ? value : current.vol;
       const frVal = field === "fr" ? value : current.fr;
       setTimeout(() => {
@@ -334,79 +415,109 @@ export default function App() {
   // Validate Safety callback
   const checkSafety = () => {
     try {
-      const b1 = parseFloat(r1Metrics.bolus) || 0;
-      const t1 = fluidics.transfer1Vol;
-      const f1_sum = parseFloat(r1Metrics.frSum) || 0;
-
-      // Find sweep pump rate
-      const swPumpObj = pumps.find((p) => p.addr !== "0" && p.sweep === "Yes");
-      const sw_fr = swPumpObj ? parseFloat(reactionData["R2"]?.[swPumpObj.id]?.fr || "0.00") || 0 : 0;
-
-      // 1. Check if planned reaction volumes when added would exceed loop capacities
-      const currentUsedVols = getUsedLoopVolumes(macroContent);
-      let loopOverflowPumpId: number | null = null;
-      let loopExceededVols = { used: 0, planned: 0, capacity: 0 };
-
       const activePumps = pumps.filter((p) => p.addr !== "0" && p.addr.trim() !== "");
-      for (const p of activePumps) {
-        if (p.sweep === "Yes") continue;
-        const r1Vol = parseFloat(reactionData["R1"]?.[p.id]?.vol || "0") || 0;
-        const r2Vol = parseFloat(reactionData["R2"]?.[p.id]?.vol || "0") || 0;
-        const plannedVol = r1Vol + r2Vol;
-        if (plannedVol > 0) {
+      const isOneStep = fluidics.reactor2Vol <= 0;
+      const currentUsedVols = getUsedLoopVolumes(macroContent);
+
+      if (isOneStep) {
+        // --- 1-STEP CASE SAFETY AUDIT ---
+        // Verify that proposed loop volume (R1) for each pump is not higher than loop capacity leftover (total capacity minus used volume)
+        let loopOverflowPumpId: number | null = null;
+        let loopOverflowVol = 0;
+        let leftoverVol = 0;
+
+        for (const p of activePumps) {
+          const r1Vol = parseFloat(reactionData["R1"]?.[p.id]?.vol || "0") || 0;
           const used = currentUsedVols[p.id] || 0;
-          const capacity = p.loopVol;
-          if (used + plannedVol > capacity) {
+          const leftover = p.loopVol - used;
+          if (r1Vol > leftover) {
             loopOverflowPumpId = p.id;
-            loopExceededVols = { used, planned: plannedVol, capacity };
+            loopOverflowVol = r1Vol;
+            leftoverVol = leftover;
             break;
           }
         }
-      }
 
-      if (loopOverflowPumpId !== null) {
-        // Reset reaction parameters tab to default values
-        setReactionData({
-          R1: {
-            1: { vol: "20.00", fr: "30.00" },
-            2: { vol: "20.00", fr: "30.00" },
-            3: { vol: "0.00", fr: "0.00" },
-            4: { vol: "0.00", fr: "0.00" },
-          },
-          R2: {
-            1: { vol: "0.00", fr: "0.00" },
-            2: { vol: "0.00", fr: "0.00" },
-            3: { vol: "0.00", fr: "0.00" },
-            4: { vol: "0.00", fr: "0.00" },
-          },
-        });
-        addLog(
-          `Safety Audit Failed: Planned volume for Pump P${loopOverflowPumpId} (${loopExceededVols.planned.toFixed(1)} µL) + already used (${loopExceededVols.used.toFixed(1)} µL) exceeds loop capacity (${loopExceededVols.capacity} µL). Reaction values reset to default to prevent syringe blockages!`,
-          "error"
-        );
-        triggerToast(`Loop Capacity Exceeded on P${loopOverflowPumpId}!`);
+        if (loopOverflowPumpId !== null) {
+          addLog(
+            `Safety Audit Failed: Proposed Reactant volume for Pump P${loopOverflowPumpId} (${loopOverflowVol.toFixed(1)} µL) exceeds remaining loop capacity leftover (${leftoverVol.toFixed(1)} µL).`,
+            "error"
+          );
+          triggerToast(`Loop Capacity Exceeded on P${loopOverflowPumpId}!`);
+          return {
+            safe: false,
+            msg: `1-Step Loop Capacity overflow on Pump P${loopOverflowPumpId}! Requested ${loopOverflowVol.toFixed(1)} µL but only ${leftoverVol.toFixed(1)} µL is left in the loop.`,
+          };
+        }
+
+        addLog("Safety Audit check: 1-Step microfluidic loops are within safe capacity bounds.", "success");
         return {
-          safe: false,
-          msg: `Reactor Stage Loop Capacity overflow on Pump P${loopOverflowPumpId}! Total requested is ${(loopExceededVols.used + loopExceededVols.planned).toFixed(1)} µL of ${loopExceededVols.capacity} µL capacity. Parameter values defaulted.`,
+          safe: true,
+          msg: "All 1-Step microfluidic loops are balanced and safe for compilation.",
+        };
+
+      } else {
+        // --- 2-STEP CASE SAFETY AUDIT ---
+        // 1. Loop capacity check: verify that total proposed volume (R1 + R2) is within pump loop capacity leftover
+        let loopOverflowPumpId: number | null = null;
+        let loopOverflowVol = 0;
+        let leftoverVol = 0;
+
+        for (const p of activePumps) {
+          if (p.sweep === "Yes") continue;
+          const r1Vol = parseFloat(reactionData["R1"]?.[p.id]?.vol || "0") || 0;
+          const r2Vol = parseFloat(reactionData["R2"]?.[p.id]?.vol || "0") || 0;
+          const plannedVol = r1Vol + r2Vol;
+          const used = currentUsedVols[p.id] || 0;
+          const leftover = p.loopVol - used;
+          if (plannedVol > leftover) {
+            loopOverflowPumpId = p.id;
+            loopOverflowVol = plannedVol;
+            leftoverVol = leftover;
+            break;
+          }
+        }
+
+        if (loopOverflowPumpId !== null) {
+          addLog(
+            `Safety Audit Failed: Total planned volume for Pump P${loopOverflowPumpId} (${loopOverflowVol.toFixed(1)} µL) exceeds remaining loop capacity leftover (${leftoverVol.toFixed(1)} µL).`,
+            "error"
+          );
+          triggerToast(`Loop Capacity Exceeded on P${loopOverflowPumpId}!`);
+          return {
+            safe: false,
+            msg: `2-Step Loop Capacity overflow on Pump P${loopOverflowPumpId}! Total requested (Stage 1 + Stage 2) is ${loopOverflowVol.toFixed(1)} µL but only ${leftoverVol.toFixed(1)} µL is left in the loop.`,
+          };
+        }
+
+        // 2. Bolus / Sweep match check for 2-Step
+        const b1 = parseFloat(r1Metrics.bolus) || 0;
+        const t1 = fluidics.transfer1Vol;
+        const f1_sum = parseFloat(r1Metrics.frSum) || 0;
+
+        // Find sweep pump rate
+        const swPumpObj = pumps.find((p) => p.addr !== "0" && p.sweep === "Yes");
+        const sw_fr = swPumpObj ? parseFloat(reactionData["R2"]?.[swPumpObj.id]?.fr || "0.00") || 0 : 0;
+
+        if (b1 > t1) {
+          if (Math.abs(f1_sum - sw_fr) > 0.05) {
+            addLog(
+              `Safety Audit Failed: R1 Bolus (${b1} µL) exceeds transfer capacity (${t1} µL). R1 flow rate sum (${f1_sum} µL/min) must match the sweep channel flow rate (${sw_fr} µL/min) perfectly to prevent mixing errors!`,
+              "error"
+            );
+            return {
+              safe: false,
+              msg: `Reactor 1 bolus volume (${b1} µL) exceeds downstream Transfer line capability (${t1} µL). R1 cumulated flow rate (${f1_sum} µL/min) must match the R2 sweep channel rate (${sw_fr} µL/min).`,
+            };
+          }
+        }
+
+        addLog("Safety Audit check: 2-Step flows and capacities represent safe pressure limits.", "success");
+        return {
+          safe: true,
+          msg: "All 2-Step microfluidic loops, flows, and heaters are safe for compilation.",
         };
       }
-
-      // 2. Bolus / Sweep match check
-      if (b1 > t1 && Math.abs(f1_sum - sw_fr) > 0.05) {
-        addLog(
-          `Safety Audit: R1 Bolus (${b1} µL) exceeds transfer capacity (${t1} µL). Flow rates must match the Sweep rate perfectly to prevent backpressure!`,
-          "error"
-        );
-        return {
-          safe: false,
-          msg: `Reactor 1 bolus volume (${b1} µL) exceeds downstream Transfer line capability (${t1} µL). Reagent mixing rates must match the sweep rate (${sw_fr} µL/min) to clear reactor channels safely.`,
-        };
-      }
-      addLog("Safety Audit check: Fluidic flow coordinates represent safe pressure margins.", "success");
-      return {
-        safe: true,
-        msg: "All microfluidic coordinates, loops, and heating arrays are balanced and safe for compilation.",
-      };
     } catch (e) {
       return null;
     }
@@ -872,10 +983,45 @@ export default function App() {
                   return cmdCode;
                 }
                 const lastLine = lines[lastLineIndex];
+
+                // Helper to parse Cavro/pump commands starting with '/'
+                const parseSyrCommand = (cmd: string) => {
+                  if (!cmd.trim().startsWith("/")) return null;
+                  const match = cmd.trim().match(/^\/([A-Za-z0-9])(.*)$/);
+                  if (!match) return null;
+                  return { address: match[1], rest: match[2] };
+                };
+
+                const incomingParsed = parseSyrCommand(cmdCode);
+
                 if (lastLine.trim().startsWith("#")) {
                   // If last line is a comment, add a new action line instead of concatenating inside the comment
                   lines.push(`0\t${cmdCode}\tConcatenated operation`);
+                } else if (incomingParsed) {
+                  // Incoming is a pump command!
+                  const parts = lastLine.split("\t");
+                  const lastLineCmd = parts.length >= 2 ? parts[1].trim() : lastLine.trim();
+                  const lastLineParsed = parseSyrCommand(lastLineCmd);
+
+                  if (lastLineParsed && lastLineParsed.address === incomingParsed.address) {
+                    // SAME PUMP ADDRESS! Concatenate them safely
+                    const lastWithoutR = lastLineCmd.endsWith("R") ? lastLineCmd.slice(0, -1) : lastLineCmd;
+                    const incomingWithoutR = incomingParsed.rest.endsWith("R") ? incomingParsed.rest.slice(0, -1) : incomingParsed.rest;
+                    const concatenatedCmd = lastWithoutR + incomingWithoutR + "R";
+
+                    if (parts.length >= 2) {
+                      parts[1] = concatenatedCmd;
+                      lines[lastLineIndex] = parts.join("\t");
+                    } else {
+                      lines[lastLineIndex] = concatenatedCmd;
+                    }
+                  } else {
+                    // DIFFERENT PUMP ADDRESS (or last line was not a pump command)!
+                    // Automatically append to a new line
+                    lines.push(`0\t${cmdCode}\tConcatenated pump step`);
+                  }
                 } else {
+                  // Incoming is not a pump command (generic fallback)
                   const parts = lastLine.split("\t");
                   if (parts.length >= 2) {
                     let cmdPart = parts[1];
@@ -892,7 +1038,7 @@ export default function App() {
                 }
                 return lines.join("\n");
               });
-              addLog(`Code helper: Concatenated inline command [${cmdCode}] to last active macro step.`, "success");
+              addLog(`Code helper: Processed inline concatenate/append for [${cmdCode}].`, "success");
             }}
           />
         </aside>
