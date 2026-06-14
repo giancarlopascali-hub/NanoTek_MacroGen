@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { PumpConfig, FluidicsConfig, AUXState, LogLine } from "./types";
-import { Play, Code, ShieldCheck, Cpu, Terminal, Sparkles, BookOpen, Settings, Flame, ChevronUp, ChevronDown } from "lucide-react";
+import { Play, Code, ShieldCheck, Cpu, Terminal, BookOpen, Settings, Flame, ChevronUp, ChevronDown } from "lucide-react";
 import FluidicSchematic from "./components/FluidicSchematic";
 import SyntaxExplorer from "./components/SyntaxExplorer";
 import PumpConfigurator from "./components/PumpConfigurator";
@@ -1432,19 +1432,12 @@ export default function App() {
 
         {/* Standard compilation trigger */}
         <div className="flex items-center gap-3">
-          <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-full text-[10px] font-bold uppercase tracking-wider">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-full text-[10px] font-bold uppercase tracking-wider">
             <span className={`w-1.5 h-1.5 rounded-full ${fluidics.reactor2Vol > 0 ? "bg-purple-500" : "bg-amber-500 animate-pulse"}`}></span>
             <span className={fluidics.reactor2Vol > 0 ? "text-purple-700" : "text-amber-700"}>
               {fluidics.reactor2Vol > 0 ? "2-Step Synthesis Mode" : "1-Step Synthesis Active"}
             </span>
           </div>
-          <button
-            onClick={runSimulation}
-            className="px-3 py-1.5 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded shadow-sm flex items-center gap-1.5"
-          >
-            <Sparkles className="w-3.5 h-3.5 fill-white" />
-            Dry-Run Test
-          </button>
         </div>
       </header>
 
