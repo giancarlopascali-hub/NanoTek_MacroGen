@@ -259,7 +259,7 @@ export default function PumpConfigurator({
         <div>
           <span className="font-semibold block mb-0.5">Physical Solution Advice:</span>
           It is highly recommended that tubing inner diameters stay accurately calibrated to guarantee proper volumetric timing.
-          Standard NanoTek Teflon sleeves support 0.020&quot; ID (representing ~400 µL line thresholds), ensuring consistent laminar flow is maintained without exceeding internal 400 psi safety pressure locks.
+          Standard NanoTek Teflon sleeves support 0.020&quot; ID (representing ~400 µL line thresholds), ensuring consistent laminar flow is maintained with optimal flow rates.
         </div>
       </div>
     </div>

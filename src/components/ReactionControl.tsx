@@ -140,26 +140,17 @@ export default function ReactionControl({
                 <div className="grid grid-cols-1 gap-2">
                   {r1Pumps.map((pump) => {
                     const rowData = reactionData["R1"]?.[pump.id] || { vol: "0.00", fr: "0.00" };
-                    const isSw = pump.sweep === "Yes" && isTwoStep;
                     return (
                       <div
                         key={pump.id}
-                        className={`flex items-center justify-between p-3 border rounded-lg transition-colors ${
-                          isSw ? "bg-purple-50/20 border-purple-200/50" : "border-slate-100 hover:border-slate-200 bg-white"
-                        }`}
+                        className="border-slate-100 hover:border-slate-200 bg-white flex items-center justify-between p-3 border rounded-lg transition-colors"
                       >
                         <div className="flex items-center gap-2 text-xs">
-                          <span className={`w-5 h-5 rounded font-semibold flex items-center justify-center font-mono ${
-                            isSw ? "bg-purple-100 text-purple-800" : "bg-emerald-100 text-emerald-800"
-                          }`}>
+                          <span className="w-5 h-5 rounded font-semibold flex items-center justify-center font-mono bg-emerald-100 text-emerald-800">
                             P{pump.id}
                           </span>
                           <span className="text-xs text-gray-600">
-                            {isSw ? (
-                              <span className="font-semibold text-purple-700">Sweep as Reactant (Loop: {pump.loopVol} µL)</span>
-                            ) : (
-                              `Reactant (Loop: ${pump.loopVol} µL)`
-                            )}
+                            Reactant (Loop: {pump.loopVol} µL)
                           </span>
                         </div>
                         <div className="flex items-center gap-3">

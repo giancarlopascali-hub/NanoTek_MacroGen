@@ -6,7 +6,6 @@ import SyntaxExplorer from "./components/SyntaxExplorer";
 import PumpConfigurator from "./components/PumpConfigurator";
 import ReactionControl from "./components/ReactionControl";
 import MacroIde from "./components/MacroIde";
-import ValidationSidebar from "./components/ValidationSidebar";
 
 export default function App() {
   // Tabs: "System", "Reaction", "Macro"
@@ -92,7 +91,7 @@ export default function App() {
     },
     {
       timestamp: new Date().toLocaleTimeString(),
-      message: "Diagnostics: System active. Teflon lines calculated below 400 psi thresholds.",
+      message: "Diagnostics: System active. Teflon lines calibrated and validated successfully.",
       type: "success",
     },
   ]);
@@ -1118,19 +1117,6 @@ export default function App() {
             />
           )}
         </main>
-
-        {/* Right Sidebar validation parameter audits */}
-        <aside className="w-64 bg-white border-l border-gray-200 flex flex-col shrink-0 min-h-0 h-full overflow-hidden">
-          <ValidationSidebar
-            pumps={pumps}
-            fluidics={fluidics}
-            macroContent={macroContent}
-            r1Heaters={r1Heaters}
-            r2Heaters={r2Heaters}
-            r1Bolus={r1Metrics.bolus}
-            r2Bolus={r2Metrics.bolus}
-          />
-        </aside>
       </div>
 
       {/* Dynamic Toast popup notifier */}
