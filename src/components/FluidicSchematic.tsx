@@ -278,7 +278,7 @@ export default function FluidicSchematic({
                     y1="65"
                     x2={cx}
                     y2="95"
-                    stroke={isSweep ? "#a855f7" : "#10b981"}
+                    stroke="#10b981"
                     strokeWidth="1.5"
                     strokeDasharray="2 2"
                   />
