@@ -60,10 +60,10 @@ export default function FluidicSchematic({
         </div>
       </div>
 
-      {/* SVG Container wrapping the schema */}
-      <div className="w-full overflow-x-auto bg-gray-50 border border-gray-100 rounded-lg p-4">
+      {/* SVG Container wrapping the schema with reduced padding */}
+      <div className="w-full overflow-x-auto bg-gray-50 border border-gray-100 rounded-lg py-2 px-3">
         <svg
-          viewBox="0 0 1000 260"
+          viewBox="0 -18 1000 278"
           className="w-full min-w-[850px] h-[230px] select-none font-sans"
         >
           {/* Animated Line Gradients and Patterns */}
@@ -275,7 +275,7 @@ export default function FluidicSchematic({
                   {/* Connection Line straight down into Reactor 1's top (Y: 95) */}
                   <line
                     x1={cx}
-                    y1="55"
+                    y1="65"
                     x2={cx}
                     y2="95"
                     stroke={isSweep ? "#a855f7" : "#10b981"}
@@ -285,7 +285,7 @@ export default function FluidicSchematic({
                   {/* Loop Cylinders background */}
                   <rect
                     x={cx - 13}
-                    y="20"
+                    y="30"
                     width="26"
                     height="35"
                     rx="4"
@@ -297,7 +297,7 @@ export default function FluidicSchematic({
                   {ratioLeft > 0 && (
                     <rect
                       x={cx - 13}
-                      y={55 - 35 * ratioLeft}
+                      y={65 - 35 * ratioLeft}
                       width="26"
                       height={35 * ratioLeft}
                       rx="2"
@@ -306,12 +306,12 @@ export default function FluidicSchematic({
                     />
                   )}
                   {/* Cap top and bottom */}
-                  <ellipse cx={cx} cy="20" rx="13" ry="4" fill={ratioLeft >= 1.0 ? "#047857" : "#94a3b8"} />
-                  <ellipse cx={cx} cy="55" rx="13" ry="4" fill="#047857" />
+                  <ellipse cx={cx} cy="30" rx="13" ry="4" fill={ratioLeft >= 1.0 ? "#047857" : "#94a3b8"} />
+                  <ellipse cx={cx} cy="65" rx="13" ry="4" fill="#047857" />
                   {/* Cylinder border */}
                   <rect
                     x={cx - 13}
-                    y="20"
+                    y="30"
                     width="26"
                     height="35"
                     rx="4"
@@ -319,15 +319,15 @@ export default function FluidicSchematic({
                     stroke="#047857"
                     strokeWidth="1.5"
                   />
-                  <text x={cx} y="38" fill="#fff" fontSize="8" fontWeight="bold" textAnchor="middle">
+                  <text x={cx} y="48" fill="#fff" fontSize="8" fontWeight="bold" textAnchor="middle">
                     P{pump.id}
                   </text>
                   <g className="font-mono">
-                    <text x={cx} y="-3" fill="#047857" fontSize="8" fontWeight="bold" textAnchor="middle">
+                    <text x={cx} y="7" fill="#047857" fontSize="8" fontWeight="bold" textAnchor="middle">
                       {Math.max(0, pump.loopVol - used).toFixed(0)}
                     </text>
-                    <line x1={cx - 10} y1="2" x2={cx + 10} y2="2" stroke="#94a3b8" strokeWidth="1" />
-                    <text x={cx} y="11" fill="#475569" fontSize="8" fontWeight="bold" textAnchor="middle">
+                    <line x1={cx - 10} y1="12" x2={cx + 10} y2="12" stroke="#94a3b8" strokeWidth="1" />
+                    <text x={cx} y="21" fill="#475569" fontSize="8" fontWeight="bold" textAnchor="middle">
                       {pump.loopVol} µL
                     </text>
                   </g>

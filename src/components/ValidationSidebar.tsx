@@ -110,60 +110,12 @@ export default function ValidationSidebar({
         </div>
       </div>
 
-      {/* Global Parameters overview panel */}
-      <div className="border-t border-gray-100 pt-4 flex-1">
-        <h2 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">
-          Global Specifications
-        </h2>
-        <div className="space-y-3">
-          {/* Reactor 1 Target metric */}
-          <div className="flex justify-between items-center py-1 border-b border-gray-50 text-xs">
-            <span className="text-gray-500 font-medium">Reactor 1 target:</span>
-            <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-[10px] font-bold">
-              {r1Bolus} µL
-            </span>
-          </div>
-
-          {/* Reactor 2 Target metric */}
-          <div className="flex justify-between items-center py-1 border-b border-gray-50 text-xs">
-            <span className="text-gray-500 font-medium">Reactor 2 target:</span>
-            <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-[10px] font-bold">
-              {r2Bolus} µL
-            </span>
-          </div>
-
-          {/* Flow unit standard limit */}
-          <div className="flex justify-between items-center py-1 border-b border-gray-50 text-xs">
-            <span className="text-gray-500 font-medium">Accuracy resolution:</span>
-            <span className="text-[10px] font-medium font-semibold text-gray-700 uppercase">
-              5 nL / Min
-            </span>
-          </div>
-
-          {/* High pressure limits */}
-          <div className="flex justify-between items-center py-1 border-b border-gray-50 text-xs">
-            <span className="text-gray-500 font-medium font-medium">Over-pressure Cut:</span>
-            <span className="text-[10px] font-mono font-bold text-red-600 uppercase">
-              400 PSI
-            </span>
-          </div>
-
-          {/* Cavitation warning speeds */}
-          <div className="flex justify-between items-center py-1 border-b border-gray-50 text-xs">
-            <span className="text-gray-500 font-medium">Cavitation Warn:</span>
-            <span className="text-[10px] font-mono font-semibold text-gray-600">
-              &gt; 4,000 µL/m
-            </span>
-          </div>
-        </div>
-
-        {/* Small tips block */}
-        <div className="mt-6 bg-slate-50 p-2.5 rounded border border-slate-100 text-[10px] text-gray-400 leading-normal flex gap-1.5">
-          <Hammer className="w-3 h-3 text-gray-400 shrink-0 mt-0.5" />
-          <span>
-            Pumps have a physical limit rate of 6,250 µL/min. Keep loops under 4,000 µL/min to prevent solute crystallization.
-          </span>
-        </div>
+      {/* Small tips block */}
+      <div className="mt-auto bg-slate-50 p-2.5 rounded border border-slate-100 text-[10px] text-gray-400 leading-normal flex gap-1.5">
+        <Hammer className="w-3 h-3 text-gray-400 shrink-0 mt-0.5" />
+        <span>
+          Pumps have a physical limit rate of 6,250 µL/min. Keep loops under 4,000 µL/min to prevent solute crystallization.
+        </span>
       </div>
     </div>
   );

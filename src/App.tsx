@@ -349,6 +349,7 @@ export default function App() {
 
       const activePumps = pumps.filter((p) => p.addr !== "0" && p.addr.trim() !== "");
       for (const p of activePumps) {
+        if (p.sweep === "Yes") continue;
         const r1Vol = parseFloat(reactionData["R1"]?.[p.id]?.vol || "0") || 0;
         const r2Vol = parseFloat(reactionData["R2"]?.[p.id]?.vol || "0") || 0;
         const plannedVol = r1Vol + r2Vol;
