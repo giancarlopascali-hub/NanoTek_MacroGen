@@ -777,16 +777,216 @@ export default function App() {
       }
 
     } else {
-      // 2-Steps Setup placeholder
-      lines.push(`# --- PROCESS STEP 3: 2-STEP SYNTHESIS ROUTINE (AWAITING PROTOCOL RULES) ---`);
-      lines.push(`# Currently Reactant 2 is active (${fluidics.reactor2Vol}µL volume).`);
-      lines.push(`# Set Reactor 2 Volume to 0 in System settings to run and compile 1-step logic.`);
+      // 2-Steps Setup
+      const b1 = parseFloat(r1Metrics.bolus) || 0;
+      const t1 = fluidics.transfer1Vol;
+      const r1Vol = fluidics.reactor1Vol;
+      const isScenarioA = (b1 + r1Vol) <= t1;
+      const sweepDeliveryFr = parseFloat(finalSweepFr) || 120.0;
+
+      // Reaction 1 cumulated flow rate for R1 purge (same as 1-step)
+      const r1Pumps = activePumps.filter((p) => p.assignedReactor === "Reactor 1" || p.sweep === "Yes");
+      let cumulatedFr = 0;
+      r1Pumps.forEach((p) => {
+        const rData = reactionData["R1"]?.[p.id] || { vol: "0", fr: "0" };
+        const valVol = parseFloat(rData.vol) || 0;
+        const valFr = parseFloat(rData.fr) || 0;
+        if (valVol > 0 && valFr > 0) {
+          cumulatedFr += valFr;
+        }
+      });
+      if (cumulatedFr <= 0) {
+        cumulatedFr = 100.0; // fallback standard flow rate
+      }
+
+      lines.push(`# --- PROCESS STEP 3: 2-STEP STAGE 1 CO-DELIVERY MIXING (R1 PORT 5) ---`);
+      let step3DelayVal = Math.ceil(pressDurationMs);
+
+      // DH Port setting as the very first line item for Stage 1 mixing
+      if (hubAddr && hubAddr !== "0" && hubAddr.trim() !== "") {
+        lines.push(`${step3DelayVal}\t/${hubAddr}o${hubPort}R\tConfigure Distribution Hub (DH) to Port ${hubPort}`);
+        step3DelayVal = 0;
+      }
+
+      // Automated sampling: AUX A & B to start collection right after setting DH line
+      if (autoSample === "Yes") {
+        const st_a = asLogic["Start Collection"]["A"] === "ON" ? "TRUE" : "FALSE";
+        const st_b = asLogic["Start Collection"]["B"] === "ON" ? "TRUE" : "FALSE";
+        lines.push(`${step3DelayVal}\tAUX${auxA} ${st_a}\tStart fraction collection valve A`);
+        step3DelayVal = 0;
+        lines.push(`${step3DelayVal}\tAUX${auxB} ${st_b}\tStart fraction collection valve B`);
+      }
+
+      let maxR1DeliveryTimeMs = 0;
+      let r1InjectCount = 0;
+      r1Pumps.forEach((pump) => {
+        const rData = reactionData["R1"]?.[pump.id] || { vol: "0", fr: "0" };
+        const valVol = parseFloat(rData.vol) || 0;
+        const valFr = parseFloat(rData.fr) || 0;
+        if (valVol > 0 && valFr > 0) {
+          const { volSteps, fpsCounts } = computeSteps(pump.id, valVol, valFr);
+          const deliveryTimeMs = (valVol / valFr) * 60 * 1000;
+          if (deliveryTimeMs > maxR1DeliveryTimeMs) {
+            maxR1DeliveryTimeMs = deliveryTimeMs;
+          }
+          lines.push(`${step3DelayVal}\t/${pump.addr}o5V${fpsCounts}D${volSteps}R\tSynchronized co-delivery Reactant Pump ${pump.id}: ${valVol}µL at ${valFr}µL/min`);
+          step3DelayVal = 0;
+          r1InjectCount++;
+        }
+      });
+      if (r1InjectCount === 0) {
+        lines.push(`${step3DelayVal}\t# NO ACTIVE REACTOR 1 REAGENTS\tR1 co-delivery bypassed`);
+      }
+      lines.push("");
+
+      // Step 4: Valve rotation to plugged Port 7 for R1 non-sweep pumps
+      lines.push(`# --- PROCESS STEP 4: VALVE ROTATION TO PLUGGED PORT 7 ---`);
+      let turnedOthers = false;
+      const delayAfterDelivery = r1InjectCount > 0 ? Math.ceil(maxR1DeliveryTimeMs) : 0;
+      r1Pumps.forEach((pump) => {
+        if (pump.sweep !== "Yes" && pump.assignedReactor === "Reactor 1") {
+          const rData = reactionData["R1"]?.[pump.id] || { vol: "0", fr: "0" };
+          const valVol = parseFloat(rData.vol) || 0;
+          const valFr = parseFloat(rData.fr) || 0;
+          if (valVol > 0 && valFr > 0) {
+            const delayVal = turnedOthers ? 0 : delayAfterDelivery;
+            lines.push(`${delayVal}\t/${pump.addr}o7R\tClose non-sweep Reactant Pump ${pump.id} (turn to plugged Port 7)`);
+            turnedOthers = true;
+          }
+        }
+      });
+      lines.push("");
+
+      // Step 5: Sweep out of Reactor 1
+      lines.push(`# --- PROCESS STEP 5: SWEEP OUT OF REACTOR 1 (PORT 2) ---`);
+      let elapsedMsStep5 = 0;
+      if (sweepPumpObj) {
+        const sweepFirstDelay = turnedOthers ? 0 : delayAfterDelivery;
+        const { volSteps: r1PurgeVolSteps, fpsCounts: r1CumFrCounts } = computeSteps(sweepPumpObj.id, r1Vol, cumulatedFr);
+        lines.push(`${sweepFirstDelay}\t/${sweepPumpObj.addr}o2V${r1CumFrCounts}D${r1PurgeVolSteps}R\tPurge Reactor 1 volume using Sweep Pump: ${r1Vol}µL at cumulated ${cumulatedFr.toFixed(2)}µL/min`);
+
+        const sweepFirstDurationMs = (r1Vol / cumulatedFr) * 60 * 1000;
+        elapsedMsStep5 = sweepFirstDurationMs;
+
+        if (isScenarioA) {
+          // Scenario A: Pushing the remaining volume in T1 at the sweep delivery rate
+          const remainingT1Vol = t1 - (b1 + r1Vol);
+          if (remainingT1Vol > 0) {
+            const { volSteps: remSteps, fpsCounts: remCounts } = computeSteps(sweepPumpObj.id, remainingT1Vol, sweepDeliveryFr);
+            lines.push(`${Math.ceil(sweepFirstDurationMs)}\t/${sweepPumpObj.addr}o2V${remCounts}D${remSteps}R\tSweep remaining T1 capacity with Sweep Pump: ${remainingT1Vol.toFixed(1)}µL at sweep rate ${sweepDeliveryFr}µL/min`);
+            const sweepSecondDurationMs = (remainingT1Vol / sweepDeliveryFr) * 60 * 1000;
+            elapsedMsStep5 = sweepSecondDurationMs;
+          } else {
+            elapsedMsStep5 = 0;
+          }
+        } else {
+          // Scenario B: Reactants already overflowed into Reactor 2 during R1 purge!
+          lines.push(`0\t# SCENARIO B ACTIVE\tReactants overflowed T1 into Reactor 2. No T1 purge needed.`);
+          elapsedMsStep5 = sweepFirstDurationMs;
+        }
+      } else {
+        lines.push(`0\t# NO SWEEP PUMP ASSIGNED\tPurge Reactor 1 bypassed`);
+        elapsedMsStep5 = r1InjectCount > 0 ? maxR1DeliveryTimeMs : 0;
+      }
+      lines.push("");
+
+      // Step 6: Actual Reactor 2 Reaction happening
+      lines.push(`# --- PROCESS STEP 6: REACTOR 2 CO-DELIVERY MIXING ---`);
+      const r2Pumps = activePumps.filter((p) => p.assignedReactor === "Reactor 2" || p.sweep === "Yes");
+      let step6DelayVal = Math.ceil(elapsedMsStep5);
+      let maxR2DeliveryTimeMs = 0;
+      let r2InjectCount = 0;
+
+      r2Pumps.forEach((pump) => {
+        const rData = reactionData["R2"]?.[pump.id] || { vol: "0", fr: "0" };
+        let valVol = parseFloat(rData.vol) || 0;
+        const valFr = parseFloat(rData.fr) || 0;
+
+        if (pump.sweep === "Yes") {
+          // If we are in Scenario B, adjust the sweep delivery volume
+          if (!isScenarioA) {
+            const overflowVol = (b1 + r1Vol) - t1;
+            const originalVol = valVol;
+            valVol = Math.max(0, valVol - overflowVol);
+            lines.push(`0\t# SCENARIO B SWEEP ADJUSTMENT\tAdjusted Sweep Pump delivery: ${originalVol}µL minus ${overflowVol.toFixed(1)}µL overflow = ${valVol.toFixed(1)}µL`);
+          }
+        }
+
+        if (valVol > 0 && valFr > 0) {
+          const { volSteps, fpsCounts } = computeSteps(pump.id, valVol, valFr);
+          const deliveryTimeMs = (valVol / valFr) * 60 * 1000;
+          if (deliveryTimeMs > maxR2DeliveryTimeMs) {
+            maxR2DeliveryTimeMs = deliveryTimeMs;
+          }
+          const port = pump.sweep === "Yes" ? "o2" : "o5";
+          const descStr = pump.sweep === "Yes"
+            ? `Synchronized Reaction 2 delivery Sweep Pump ${pump.id}: ${valVol.toFixed(1)}µL at ${valFr}µL/min`
+            : `Synchronized Reaction 2 delivery Reactant Pump ${pump.id}: ${valVol.toFixed(1)}µL at ${valFr}µL/min`;
+
+          lines.push(`${step6DelayVal}\t/${pump.addr}${port}V${fpsCounts}D${volSteps}R\t${descStr}`);
+          step6DelayVal = 0;
+          r2InjectCount++;
+        }
+      });
+
+      if (r2InjectCount === 0) {
+        lines.push(`${step6DelayVal}\t# NO ACTIVE REACTOR 2 REAGENTS\tR2 co-delivery bypassed`);
+      }
+      lines.push("");
+
+      // Step 7: Reactor 2 non-sweep valve rotation to port 7
+      lines.push(`# --- PROCESS STEP 7: REACTOR 2 VALVE ROTATION TO PORT 7 ---`);
+      let turnedR2Others = false;
+      const delayAfterR2Delivery = r2InjectCount > 0 ? Math.ceil(maxR2DeliveryTimeMs) : 0;
+      r2Pumps.forEach((pump) => {
+        if (pump.sweep !== "Yes" && pump.assignedReactor === "Reactor 2") {
+          const rData = reactionData["R2"]?.[pump.id] || { vol: "0", fr: "0" };
+          const valVol = parseFloat(rData.vol) || 0;
+          const valFr = parseFloat(rData.fr) || 0;
+          if (valVol > 0 && valFr > 0) {
+            const delayVal = turnedR2Others ? 0 : delayAfterR2Delivery;
+            lines.push(`${delayVal}\t/${pump.addr}o7R\tClose non-sweep Reactant Pump ${pump.id} (turn to plugged Port 7)`);
+            turnedR2Others = true;
+          }
+        }
+      });
+      lines.push("");
+
+      // Step 8: Sweep Delivery for Reactor 2 and T2 / Sweep Lines
+      lines.push(`# --- PROCESS STEP 8: SWEEP AND WASH VALVES FOR REACTOR 2 ---`);
+      if (sweepPumpObj) {
+        const step8DelayVal = turnedR2Others ? 0 : delayAfterR2Delivery;
+        const r2Vol = fluidics.reactor2Vol;
+        let cumulatedR2Fr = 0;
+        r2Pumps.forEach((p) => {
+          const rData = reactionData["R2"]?.[p.id] || { vol: "0", fr: "0" };
+          const valVol = parseFloat(rData.vol) || 0;
+          const valFr = parseFloat(rData.fr) || 0;
+          if (valVol > 0 && valFr > 0) {
+            cumulatedR2Fr += valFr;
+          }
+        });
+        if (cumulatedR2Fr <= 0) {
+          cumulatedR2Fr = 100.0;
+        }
+
+        const { volSteps: r2VolSteps, fpsCounts: r2CumFrCounts } = computeSteps(sweepPumpObj.id, r2Vol, cumulatedR2Fr);
+        lines.push(`${step8DelayVal}\t/${sweepPumpObj.addr}o2V${r2CumFrCounts}D${r2VolSteps}R\tPurge Reactor 2 volume using Sweep Pump: ${r2Vol}µL at cumulated ${cumulatedR2Fr.toFixed(2)}µL/min`);
+
+        const r2FirstDurationMs = (r2Vol / cumulatedR2Fr) * 60 * 1000;
+
+        const finalSweepVol = fluidics.transfer2Vol + fluidics.sweepVol;
+        const { volSteps: finalSweepSteps, fpsCounts: finalSweepCounts } = computeSteps(sweepPumpObj.id, finalSweepVol, sweepDeliveryFr);
+        lines.push(`${Math.ceil(r2FirstDurationMs)}\t/${sweepPumpObj.addr}o2V${finalSweepCounts}D${finalSweepSteps}R\tPost-reaction sweep wash to T2 and Sweep Line: ${finalSweepVol}µL at sweep rate ${sweepDeliveryFr}µL/min`);
+      } else {
+        lines.push(`0\t# NO SWEEP PUMP ASSIGNED\tReactor 2 sweep bypassed`);
+      }
     }
 
     // Stop automated collection if selected
     if (autoSample === "Yes") {
       lines.push("");
-      lines.push(`# --- PROCESS STEP 6: STOP AUTOMATED FRACTION COLLECTION ---`);
+      lines.push(`# --- PROCESS STEP: STOP AUTOMATED FRACTION COLLECTION ---`);
       const sp_a = asLogic["Stop Collection"]["A"] === "ON" ? "TRUE" : "FALSE";
       const sp_b = asLogic["Stop Collection"]["B"] === "ON" ? "TRUE" : "FALSE";
       lines.push(`0\tAUX${auxA} ${sp_a}\tStop fraction collection valve A`);
@@ -796,7 +996,7 @@ export default function App() {
     // Reference wait retrieved manual sampling option
     if (autoSample !== "Yes") {
       lines.push("");
-      lines.push(`# --- PROCESS STEP 6: RETRIEVE COLLECTION VIAL ---`);
+      lines.push(`# --- PROCESS STEP: RETRIEVE COLLECTION VIAL ---`);
       lines.push(`0\tWait\tReaction completed, retrieve collection vial`);
     }
 
