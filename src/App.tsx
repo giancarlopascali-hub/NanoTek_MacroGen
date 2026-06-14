@@ -492,21 +492,22 @@ export default function App() {
         // 2. Bolus / Sweep match check for 2-Step
         const b1 = parseFloat(r1Metrics.bolus) || 0;
         const t1 = fluidics.transfer1Vol;
+        const r1Vol = fluidics.reactor1Vol;
         const f1_sum = parseFloat(r1Metrics.frSum) || 0;
 
         // Find sweep pump rate
         const swPumpObj = pumps.find((p) => p.addr !== "0" && p.sweep === "Yes");
         const sw_fr = swPumpObj ? parseFloat(reactionData["R2"]?.[swPumpObj.id]?.fr || "0.00") || 0 : 0;
 
-        if (b1 > t1) {
+        if (t1 < b1 + r1Vol) {
           if (Math.abs(f1_sum - sw_fr) > 0.05) {
             addLog(
-              `Safety Audit Failed: R1 Bolus (${b1} µL) exceeds transfer capacity (${t1} µL). R1 flow rate sum (${f1_sum} µL/min) must match the sweep channel flow rate (${sw_fr} µL/min) perfectly to prevent mixing errors!`,
+              `Safety Audit Failed: Transfer line 1 capacity (${t1} µL) is smaller than R1 bolus + Reactor 1 volume (${(b1 + r1Vol).toFixed(1)} µL). R1 flow rate sum (${f1_sum} µL/min) must match the sweep channel flow rate (${sw_fr} µL/min) perfectly to prevent mixing errors!`,
               "error"
             );
             return {
               safe: false,
-              msg: `Reactor 1 bolus volume (${b1} µL) exceeds downstream Transfer line capability (${t1} µL). R1 cumulated flow rate (${f1_sum} µL/min) must match the R2 sweep channel rate (${sw_fr} µL/min).`,
+              msg: `Transfer line 1 capacity (${t1} µL) is smaller than R1 bolus + Reactor 1 volume (${(b1 + r1Vol).toFixed(1)} µL). R1 cumulated flow rate (${f1_sum} µL/min) must match the R2 sweep channel rate (${sw_fr} µL/min).`,
             };
           }
         }
