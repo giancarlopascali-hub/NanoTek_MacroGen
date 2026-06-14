@@ -1,5 +1,5 @@
 {
-  "name": "NanoTek Macro Generator",
+  "name": "Advion NanoTek Macro Generator",
   "description": "Standalone configuration planner and macro sequence writer for the Advion NanoTek Microfluidic Synthesis System.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

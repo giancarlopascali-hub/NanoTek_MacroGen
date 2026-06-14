@@ -8,6 +8,7 @@ interface MacroIdeProps {
   onClear: () => void;
   onSimulate: () => void;
   showSuccessMessage: (msg: string) => void;
+  onSelectionChange?: (start: number, end: number) => void;
 }
 
 export default function MacroIde({
@@ -17,6 +18,7 @@ export default function MacroIde({
   onClear,
   onSimulate,
   showSuccessMessage,
+  onSelectionChange,
 }: MacroIdeProps) {
   // Line counter calculation
   const lines = content.split("\n");
@@ -25,6 +27,11 @@ export default function MacroIde({
   const handleCopyToClipboard = () => {
     navigator.clipboard.writeText(content);
     showSuccessMessage("Macro text copied to clipboard!");
+  };
+
+  const handleSelection = (e: React.SyntheticEvent<HTMLTextAreaElement>) => {
+    const target = e.currentTarget;
+    onSelectionChange?.(target.selectionStart, target.selectionEnd);
   };
 
   return (
@@ -95,6 +102,10 @@ export default function MacroIde({
         <textarea
           value={content}
           onChange={(e) => onChangeContent(e.target.value)}
+          onSelect={handleSelection}
+          onKeyUp={handleSelection}
+          onClick={handleSelection}
+          onFocus={handleSelection}
           onKeyDown={(e) => {
             if (e.key === "Tab") {
               e.preventDefault();
@@ -108,6 +119,8 @@ export default function MacroIde({
               // Move cursor forward by one tab
               setTimeout(() => {
                 target.selectionStart = target.selectionEnd = start + 1;
+                // Also trigger selection change after tab insert
+                onSelectionChange?.(start + 1, start + 1);
               }, 0);
             }
           }}

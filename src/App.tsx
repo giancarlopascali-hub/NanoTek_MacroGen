@@ -81,6 +81,18 @@ export default function App() {
 
   // Live Compiled Macro block content
   const [macroContent, setMacroContent] = useState<string>("");
+  const [macroSelection, setMacroSelection] = useState<{ start: number; end: number } | null>(null);
+
+  // Helper to map character selection index to line index
+  const getLineIndex = (text: string, charIndex: number): number => {
+    let lineCount = 0;
+    for (let i = 0; i < charIndex && i < text.length; i++) {
+      if (text[i] === "\n") {
+        lineCount++;
+      }
+    }
+    return lineCount;
+  };
 
   // Bottom terminal console log timeline state
   const [consoleLogs, setConsoleLogs] = useState<LogLine[]>([
@@ -1388,10 +1400,10 @@ export default function App() {
           </div>
           <div>
             <h1 className="text-sm font-bold text-gray-900 tracking-tight leading-none uppercase">
-              ADVION NANOTEK
+              Advion NanoTek Macro Generator
             </h1>
             <p className="text-[10px] text-gray-500 uppercase tracking-widest mt-1">
-              Macro Engineering Suite (V4 Standalone)
+              Standalone Compiler & Configurator
             </p>
           </div>
         </div>
@@ -1450,22 +1462,37 @@ export default function App() {
             pumps={pumps}
             hubAddr={hubAddr}
             onInsertCommand={(cmd) => {
-              setMacroContent((prev) => (prev ? prev + "\n" + cmd : cmd));
+              setMacroContent((prev) => {
+                if (!prev) return cmd;
+                const lines = prev.split("\n");
+                let targetLineIndex = lines.length - 1;
+                if (macroSelection !== null) {
+                  targetLineIndex = getLineIndex(prev, macroSelection.start);
+                }
+                
+                // bound targetLineIndex to valid lines
+                if (targetLineIndex < 0) targetLineIndex = 0;
+                if (targetLineIndex >= lines.length) targetLineIndex = lines.length - 1;
+
+                lines.splice(targetLineIndex + 1, 0, cmd);
+                return lines.join("\n");
+              });
               addLog(`Code helper: Appended base action [${cmd}] directly to macro editor space.`, "success");
             }}
             onConcatCommand={(cmdCode) => {
               setMacroContent((prev) => {
                 if (!prev) return cmdCode;
                 const lines = prev.split("\n");
-                let lastLineIndex = lines.length - 1;
-                // find last non-empty line
-                while (lastLineIndex >= 0 && lines[lastLineIndex].trim() === "") {
-                  lastLineIndex--;
+                let targetLineIndex = lines.length - 1;
+                if (macroSelection !== null) {
+                  targetLineIndex = getLineIndex(prev, macroSelection.start);
                 }
-                if (lastLineIndex < 0) {
-                  return cmdCode;
-                }
-                const lastLine = lines[lastLineIndex];
+
+                // bound targetLineIndex to valid lines
+                if (targetLineIndex < 0) targetLineIndex = 0;
+                if (targetLineIndex >= lines.length) targetLineIndex = lines.length - 1;
+
+                const lastLine = lines[targetLineIndex];
 
                 // Helper to parse Cavro/pump commands starting with '/'
                 const parseSyrCommand = (cmd: string) => {
@@ -1476,10 +1503,12 @@ export default function App() {
                 };
 
                 const incomingParsed = parseSyrCommand(cmdCode);
+                const isMCommand = cmdCode.trim().startsWith("M");
+                const isRCommand = cmdCode.trim() === "R";
 
-                if (lastLine.trim().startsWith("#")) {
-                  // If last line is a comment, add a new action line instead of concatenating inside the comment
-                  lines.push(`0\t${cmdCode}\tConcatenated operation`);
+                if (lastLine.trim().startsWith("#") || lastLine.trim() === "") {
+                  // If target is comment or empty, add as a new action line below it
+                  lines.splice(targetLineIndex + 1, 0, `0\t${cmdCode}\tConcatenated operation`);
                 } else if (incomingParsed) {
                   // Incoming is a pump command!
                   const parts = lastLine.split("\t");
@@ -1494,31 +1523,34 @@ export default function App() {
 
                     if (parts.length >= 2) {
                       parts[1] = concatenatedCmd;
-                      lines[lastLineIndex] = parts.join("\t");
+                      lines[targetLineIndex] = parts.join("\t");
                     } else {
-                      lines[lastLineIndex] = concatenatedCmd;
+                      lines[targetLineIndex] = concatenatedCmd;
                     }
                   } else {
                     // DIFFERENT PUMP ADDRESS (or last line was not a pump command)!
-                    // Automatically append to a new line
-                    lines.push(`0\t${cmdCode}\tConcatenated pump step`);
+                    // Automatically append to a new line below
+                    lines.splice(targetLineIndex + 1, 0, `0\t${cmdCode}\tConcatenated pump step`);
+                  }
+                } else if (isMCommand || isRCommand) {
+                  // Incoming is M or R command!
+                  const parts = lastLine.split("\t");
+                  const lastLineCmd = parts.length >= 2 ? parts[1].trim() : lastLine.trim();
+
+                  const lastWithoutR = lastLineCmd.endsWith("R") ? lastLineCmd.slice(0, -1) : lastLineCmd;
+                  const concatenatedCmd = lastWithoutR + cmdCode.trim() + (lastLineCmd.endsWith("R") ? "R" : "");
+
+                  if (parts.length >= 2) {
+                    parts[1] = concatenatedCmd;
+                    lines[targetLineIndex] = parts.join("\t");
+                  } else {
+                    lines[targetLineIndex] = concatenatedCmd;
                   }
                 } else {
-                  // Incoming is not a pump command (generic fallback)
-                  const parts = lastLine.split("\t");
-                  if (parts.length >= 2) {
-                    let cmdPart = parts[1];
-                    if (cmdPart.endsWith("R")) {
-                      cmdPart = cmdPart.slice(0, -1) + cmdCode + "R";
-                    } else {
-                      cmdPart = cmdPart + cmdCode;
-                    }
-                    parts[1] = cmdPart;
-                    lines[lastLineIndex] = parts.join("\t");
-                  } else {
-                    lines[lastLineIndex] = lastLine + cmdCode;
-                  }
+                  // It does not have an address of Kloehn syntax and is not M or R command -> Go to new line below!
+                  lines.splice(targetLineIndex + 1, 0, `0\t${cmdCode}\tConcatenated operation`);
                 }
+
                 return lines.join("\n");
               });
               addLog(`Code helper: Processed inline concatenate/append for [${cmdCode}].`, "success");
@@ -1594,10 +1626,14 @@ export default function App() {
               onSave={handleSaveFile}
               onClear={() => {
                 setMacroContent("");
+                setMacroSelection(null);
                 addLog("Workspace script cleared.", "warning");
               }}
               onSimulate={runSimulation}
               showSuccessMessage={triggerToast}
+              onSelectionChange={(start, end) => {
+                setMacroSelection({ start, end });
+              }}
             />
           )}
         </main>
