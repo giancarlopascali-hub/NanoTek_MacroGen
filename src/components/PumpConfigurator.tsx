@@ -175,24 +175,44 @@ export default function PumpConfigurator({
               Distribution Hub (DH) configuration
             </h3>
             <p className="text-[11px] text-gray-400">
-              Set Address to non-zero status to install the multi-stage auxiliary selection hub.
+              Toggle to Include or Exclude the multi-stage auxiliary selection hub at fixed address 7.
             </p>
           </div>
 
-          <div className="flex items-center gap-4 bg-slate-50 p-3 rounded-lg border border-slate-100">
+          <div className="flex flex-col sm:flex-row gap-4 bg-slate-50 p-3 rounded-lg border border-slate-100 items-start sm:items-center">
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-semibold text-gray-700">DH Status:</label>
+              <select
+                value={hubAddr === "7" ? "Include" : "Exclude"}
+                onChange={(e) => {
+                  if (e.target.value === "Include") {
+                    setHubAddr("7");
+                  } else {
+                    setHubAddr("0");
+                  }
+                }}
+                className="bg-white border border-gray-300 rounded px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-purple-500"
+              >
+                <option value="Include">Include</option>
+                <option value="Exclude">Exclude</option>
+              </select>
+            </div>
+
             <div className="flex items-center gap-2">
               <label className="text-xs font-semibold text-gray-700">DH Address:</label>
               <input
                 type="text"
-                value={hubAddr}
-                onChange={(e) => setHubAddr(e.target.value)}
-                className="w-14 bg-white border border-gray-300 rounded px-2 py-1 text-xs text-center font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
-                placeholder="7"
+                value="7"
+                disabled
+                className={`w-14 border rounded px-2 py-1 text-xs text-center font-mono opacity-60 cursor-not-allowed select-none ${
+                  hubAddr === "7" ? "bg-purple-50/50 border-purple-200 text-purple-700 font-bold" : "bg-gray-100 border-gray-200 text-gray-400"
+                }`}
               />
             </div>
-            <div className="h-6 w-px bg-slate-200"></div>
+
+            <div className="hidden sm:block h-6 w-px bg-slate-200"></div>
             <span className="text-xs font-medium text-gray-600">
-              {Number(hubAddr) > 0 ? "DH Device Installed " : "DH bypassed"}
+              {hubAddr === "7" ? "DH Device Installed " : "DH bypassed"}
             </span>
           </div>
         </div>

@@ -91,11 +91,11 @@ export default function SyntaxExplorer({
   const [heaterIdx, setHeaterIdx] = useState<string>("1");
   const [tempVal, setTempVal] = useState<string>("100");
   const [dhPortVal, setDhPortVal] = useState<string>("1");
-  const [digitalPin, setDigitalPin] = useState<string>("AUX1");
+  const [digitalPin, setDigitalPin] = useState<string>("AUX-1");
   const [digitalState, setDigitalState] = useState<string>("TRUE");
   const [analogVoltage, setAnalogVoltage] = useState<string>("2.5");
   const [analogOutputIdx, setAnalogOutputIdx] = useState<string>("1");
-  const [pumpOutputId, setPumpOutputId] = useState<number>(1);
+  const [pumpOutputAddr, setPumpOutputAddr] = useState<string>("1");
   const [pumpOutputPin, setPumpOutputPin] = useState<string>("1");
   const [pumpOutputState, setPumpOutputState] = useState<string>("1");
   const [pauseMs, setPauseMs] = useState<string>("1000");
@@ -108,21 +108,22 @@ export default function SyntaxExplorer({
         return `Set H${heaterIdx} at ${tempVal || "Off"}`;
 
       case "DH port": {
-        const address = hubAddr && hubAddr !== "0" ? hubAddr : "7";
-        return `/${address}o${dhPortVal}R`;
+        return `/7o${dhPortVal}R`;
       }
 
       case "Digital output":
         return `${digitalPin} ${digitalState}`;
 
       case "Digital output (Pump)": {
-        const targetPump = pumps.find((p) => p.id === pumpOutputId);
-        const addr = targetPump && targetPump.addr !== "0" && targetPump.addr.trim() !== "" ? targetPump.addr : `${pumpOutputId}`;
-        return `/${addr}u${pumpOutputPin},${pumpOutputState}R`;
+        const stateLetter = pumpOutputState === "1" ? "U" : "u";
+        return `/${pumpOutputAddr}${stateLetter}${pumpOutputPin}R`;
       }
 
-      case "Analog output":
-        return `ANALOG${analogOutputIdx} ${analogVoltage}V`;
+      case "Analog output": {
+        const voltValue = parseFloat(analogVoltage);
+        const voltStr = isNaN(voltValue) ? "0.0" : voltValue.toFixed(1);
+        return `/AO-${analogOutputIdx} ${voltStr}`;
+      }
 
       case "Pause":
         return `M${pauseMs}`;
@@ -411,7 +412,7 @@ export default function SyntaxExplorer({
                 ))}
               </select>
               <span className="text-[8px] text-slate-400 block mt-0.5 font-mono">
-                DH address lookup: {hubAddr && hubAddr !== "0" ? hubAddr : "7"}
+                DH Fixed Address: 7
               </span>
             </div>
           )}
@@ -425,10 +426,14 @@ export default function SyntaxExplorer({
                   onChange={(e) => setDigitalPin(e.target.value)}
                   className="w-full bg-white border border-gray-300 rounded px-1 py-0.5"
                 >
-                  <option value="AUX1">AUX 1</option>
-                  <option value="AUX2">AUX 2</option>
-                  <option value="AUX3">AUX 3</option>
-                  <option value="AUX4">AUX 4</option>
+                  <option value="AUX-1">AUX 1</option>
+                  <option value="AUX-2">AUX 2</option>
+                  <option value="AUX-3">AUX 3</option>
+                  <option value="AUX-4">AUX 4</option>
+                  <option value="AUX-5">AUX 5</option>
+                  <option value="AUX-6">AUX 6</option>
+                  <option value="AUX-7">AUX 7</option>
+                  <option value="AUX-8">AUX 8</option>
                 </select>
               </div>
               <div>
@@ -449,20 +454,15 @@ export default function SyntaxExplorer({
             <div className="space-y-2">
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[9px] text-gray-500 uppercase font-bold mb-0.5">Trigger Pump</label>
+                  <label className="block text-[9px] text-gray-500 uppercase font-bold mb-0.5">Device (Address)</label>
                   <select
-                    value={pumpOutputId}
-                    onChange={(e) => setPumpOutputId(Number(e.target.value))}
+                    value={pumpOutputAddr}
+                    onChange={(e) => setPumpOutputAddr(e.target.value)}
                     className="w-full bg-white border border-gray-300 rounded px-1 py-0.5"
                   >
-                    {pumps.map((p) => {
-                      const isDisconnected = p.addr === "0" || p.addr.trim() === "";
-                      return (
-                        <option key={p.id} value={p.id} disabled={isDisconnected}>
-                          P{p.id} {isDisconnected ? "(unassigned)" : `(Address ${p.addr})`}
-                        </option>
-                      );
-                    })}
+                    <option value="1">Pump 1 (Address 1)</option>
+                    <option value="2">Pump 2 (Address 2)</option>
+                    <option value="7">Distribution Hub (Address 7)</option>
                   </select>
                 </div>
                 <div>
