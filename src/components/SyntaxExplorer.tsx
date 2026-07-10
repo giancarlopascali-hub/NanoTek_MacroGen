@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Cpu, Plus, Settings2, Play, CornerDownRight, Binary, Zap } from "lucide-react";
 import { PumpConfig } from "../types";
+import { formatHeaterCommand } from "../utils";
 
 interface SyntaxExplorerProps {
   onInsertCommand?: (cmd: string) => void;
@@ -104,8 +105,10 @@ export default function SyntaxExplorer({
   // Build the "Other Command" string format
   const getOtherCommandCode = (): string => {
     switch (otherCmdType) {
-      case "Heater temp":
-        return `Set H${heaterIdx} at ${tempVal || "Off"}`;
+      case "Heater temp": {
+        const cmd = formatHeaterCommand(parseInt(heaterIdx, 10), tempVal);
+        return cmd || `Set H${heaterIdx} at ${tempVal || "Off"}`;
+      }
 
       case "DH port": {
         return `/7o${dhPortVal}R`;
@@ -376,10 +379,10 @@ export default function SyntaxExplorer({
                   onChange={(e) => setHeaterIdx(e.target.value)}
                   className="w-full bg-white border border-gray-300 rounded px-1 py-0.5"
                 >
-                  <option value="1">H1 (R1 Heater)</option>
-                  <option value="2">H2 (R1 Sweep)</option>
-                  <option value="3">H3 (R2 Heater)</option>
-                  <option value="4">H4 (System Loop)</option>
+                  <option value="1">H1</option>
+                  <option value="2">H2</option>
+                  <option value="3">H3</option>
+                  <option value="4">H4</option>
                 </select>
               </div>
               <div>

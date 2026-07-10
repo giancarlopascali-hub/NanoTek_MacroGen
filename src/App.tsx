@@ -6,6 +6,7 @@ import SyntaxExplorer from "./components/SyntaxExplorer";
 import PumpConfigurator from "./components/PumpConfigurator";
 import ReactionControl from "./components/ReactionControl";
 import MacroIde from "./components/MacroIde";
+import { formatHeaterCommand } from "./utils";
 
 export default function App() {
   // Tabs: "System", "Reaction", "Macro"
@@ -643,10 +644,14 @@ export default function App() {
     let targetTempSet = false;
     for (let idx = 1; idx <= 4; idx++) {
       const t1 = r1Heaters[idx] || "";
-      const tempVal = t1.trim();
+      const t2 = r2Heaters[idx] || "";
+      const tempVal = (t1 || t2).trim();
       if (tempVal !== "" && tempVal !== "Off") {
-        lines.push(`100\tSet H${idx} at ${tempVal}\tSet Heater ${idx} temperature to ${tempVal}°C`);
-        targetTempSet = true;
+        const cmd = formatHeaterCommand(idx, tempVal);
+        if (cmd) {
+          lines.push(`100\t${cmd}\tSet Heater ${idx} temperature to ${tempVal}°C`);
+          targetTempSet = true;
+        }
       }
     }
     if (targetTempSet) {
@@ -1368,6 +1373,13 @@ export default function App() {
         addLog(`[L:${lineIdx} USER INTERACTIVE PAUSE / WAIT]: Prompt: "${description || "Confirm manual step"}" (Manual operation confirmation required)`, "warning");
       } else if (trimmed.includes("AUX")) {
         addLog(`[L:${lineIdx} SYSTEM AUX TRIGGER]: Pulsed auxiliary relay signal on ${trimmed}`, "success");
+      } else if (actionCmd.startsWith("\x02") || actionCmd.startsWith("") || actionCmd.charCodeAt(0) === 2) {
+        // Parse heater command! E.g. \x02L3202000030004A\x03
+        const addrStr = actionCmd.slice(2, 4);
+        const hIdx = parseInt(addrStr, 10) - 31;
+        const valPart = actionCmd.slice(6, 14); // 8 digits
+        const tempVal = parseFloat(valPart) / 100;
+        addLog(`[L:${lineIdx} THERMAL STAGE]: Set Heater ${hIdx} temperature to ${tempVal.toFixed(1)}°C (${description})`, "warning");
       } else if (trimmed.includes("H")) {
         addLog(`[L:${lineIdx} THERMAL STAGE]: ${actionCmd} (${description})`, "warning");
       } else {
