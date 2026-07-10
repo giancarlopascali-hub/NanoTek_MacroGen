@@ -6,7 +6,7 @@ import SyntaxExplorer from "./components/SyntaxExplorer";
 import PumpConfigurator from "./components/PumpConfigurator";
 import ReactionControl from "./components/ReactionControl";
 import MacroIde from "./components/MacroIde";
-import { formatHeaterCommand } from "./utils";
+import { formatHeaterCommand, formatPumpCommand } from "./utils";
 
 export default function App() {
   // Tabs: "System", "Reaction", "Macro"
@@ -619,6 +619,7 @@ export default function App() {
     const timestamp = new Date().toLocaleString();
     const isOneStep = fluidics.reactor2Vol <= 0;
     let handlesCompletionInternally = false;
+    let finalSweepDurationMs = 0;
 
     // 1. Build Metadata Header Block
     lines.push(`# =========================================================`);
@@ -677,7 +678,8 @@ export default function App() {
       if (timeMs > maxFillTimeMs) {
         maxFillTimeMs = timeMs;
       }
-      lines.push(`0\t/${pump.addr}o8V${fillSpeedCounts}P${pump.steps}R\tFill Pump ${pump.id} Syringe standard volume from port 8`);
+      const cmd = formatPumpCommand(pump.addr, "o8", fillSpeedCounts, "A", pump.steps);
+      lines.push(`0\t${cmd}\tFill Pump ${pump.id} Syringe standard volume from port 8`);
     });
     lines.push("");
 
@@ -687,7 +689,8 @@ export default function App() {
     const pressDurationMs = 30000; // 50 uL / 100 uL/min = 0.5 minutes = 30 seconds = 30000 ms
     if (sweepPumpObj) {
       const { volSteps: pressSteps, fpsCounts: pressCounts } = computeSteps(sweepPumpObj.id, 50, 100);
-      lines.push(`${Math.ceil(maxFillTimeMs)}\t/${sweepPumpObj.addr}o2V${pressCounts}D${pressSteps}R\tPressurize fluidics with Sweep Pump ${sweepPumpObj.id}: 50µL at 100µL/min`);
+      const cmd = formatPumpCommand(sweepPumpObj.addr, "o2", pressCounts, "D", pressSteps);
+      lines.push(`${Math.ceil(maxFillTimeMs)}\t${cmd}\tPressurize fluidics with Sweep Pump ${sweepPumpObj.id}: 50µL at 100µL/min`);
     } else {
       lines.push(`# NO SWEEP PUMP INSTALLED\tPressurization step bypassed`);
     }
@@ -730,7 +733,8 @@ export default function App() {
           if (deliveryTimeMs > maxR1DeliveryTimeMs) {
             maxR1DeliveryTimeMs = deliveryTimeMs;
           }
-          lines.push(`${step3DelayVal}\t/${pump.addr}o5V${fpsCounts}D${volSteps}R\tSynchronized co-delivery Reactant Pump ${pump.id}: ${valVol}µL at ${valFr}µL/min`);
+          const cmd = formatPumpCommand(pump.addr, "o5", fpsCounts, "D", volSteps);
+          lines.push(`${step3DelayVal}\t${cmd}\tSynchronized co-delivery Reactant Pump ${pump.id}: ${valVol}µL at ${valFr}µL/min`);
           step3DelayVal = 0;
           injectCount++;
         }
@@ -751,7 +755,8 @@ export default function App() {
           const valFr = parseFloat(rData.fr) || 0;
           if (valVol > 0 && valFr > 0) {
             const delayVal = turnedOthers ? 0 : delayAfterDelivery;
-            lines.push(`${delayVal}\t/${pump.addr}o7R\tClose non-sweep Reactant Pump ${pump.id} (turn to plugged Port 7)`);
+            const cmd = formatPumpCommand(pump.addr, "o7", 0, "None", 0);
+            lines.push(`${delayVal}\t${cmd}\tClose non-sweep Reactant Pump ${pump.id} (turn to plugged Port 7)`);
             turnedOthers = true;
           }
         }
@@ -779,7 +784,8 @@ export default function App() {
         const { volSteps: r1VolSteps, fpsCounts: r1CumFrCounts } = computeSteps(sweepPumpObj.id, r1Vol, cumulatedFr);
         
         const sweepFirstDelay = turnedOthers ? 0 : (injectCount > 0 ? delayAfterDelivery : step3DelayVal);
-        lines.push(`${sweepFirstDelay}\t/${sweepPumpObj.addr}o2V${r1CumFrCounts}D${r1VolSteps}R\tPurge Reactor 1 volume using Sweep Pump: ${r1Vol}µL at cumulated ${cumulatedFr.toFixed(2)}µL/min`);
+        const cmdFirst = formatPumpCommand(sweepPumpObj.addr, "o2", r1CumFrCounts, "D", r1VolSteps);
+        lines.push(`${sweepFirstDelay}\t${cmdFirst}\tPurge Reactor 1 volume using Sweep Pump: ${r1Vol}µL at cumulated ${cumulatedFr.toFixed(2)}µL/min`);
 
         const sweepFirstDurationMs = (r1Vol / cumulatedFr) * 60 * 1000;
 
@@ -789,7 +795,9 @@ export default function App() {
         const sweepDeliveryFr = parseFloat(finalSweepFr) || 120.0;
         const { volSteps: finalSweepSteps, fpsCounts: finalSweepCounts } = computeSteps(sweepPumpObj.id, transferAndSweepVol, sweepDeliveryFr);
         
-        lines.push(`${Math.ceil(sweepFirstDurationMs)}\t/${sweepPumpObj.addr}o2V${finalSweepCounts}D${finalSweepSteps}R\tPost-reaction sweep wash to Transfer & Sweep lines: ${transferAndSweepVol}µL at sweep rate ${sweepDeliveryFr}µL/min`);
+        const cmdSecond = formatPumpCommand(sweepPumpObj.addr, "o2", finalSweepCounts, "D", finalSweepSteps);
+        lines.push(`${Math.ceil(sweepFirstDurationMs)}\t${cmdSecond}\tPost-reaction sweep wash to Transfer & Sweep lines: ${transferAndSweepVol}µL at sweep rate ${sweepDeliveryFr}µL/min`);
+        finalSweepDurationMs = (transferAndSweepVol / sweepDeliveryFr) * 60 * 1000;
       } else {
         lines.push(`# NO SWEEP PUMP ASSIGNED\tSweep delivery steps bypassed`);
       }
@@ -852,7 +860,8 @@ export default function App() {
             if (deliveryTimeMs > maxR1DeliveryTimeMs) {
               maxR1DeliveryTimeMs = deliveryTimeMs;
             }
-            lines.push(`${step3DelayVal}\t/${pump.addr}o5V${fpsCounts}D${volSteps}R\tSynchronized co-delivery Reactant Pump ${pump.id}: ${valVol}µL at ${valFr}µL/min`);
+            const cmd = formatPumpCommand(pump.addr, "o5", fpsCounts, "D", volSteps);
+            lines.push(`${step3DelayVal}\t${cmd}\tSynchronized co-delivery Reactant Pump ${pump.id}: ${valVol}µL at ${valFr}µL/min`);
             step3DelayVal = 0;
             r1InjectCount++;
           }
@@ -873,7 +882,8 @@ export default function App() {
             const valFr = parseFloat(rData.fr) || 0;
             if (valVol > 0 && valFr > 0) {
               const delayVal = turnedOthers ? 0 : delayAfterDelivery;
-              lines.push(`${delayVal}\t/${pump.addr}o7R\tClose non-sweep Reactant Pump ${pump.id} (turn to plugged Port 7)`);
+              const cmd = formatPumpCommand(pump.addr, "o7", 0, "None", 0);
+              lines.push(`${delayVal}\t${cmd}\tClose non-sweep Reactant Pump ${pump.id} (turn to plugged Port 7)`);
               turnedOthers = true;
             }
           }
@@ -886,7 +896,8 @@ export default function App() {
         if (sweepPumpObj) {
           const sweepFirstDelay = turnedOthers ? 0 : delayAfterDelivery;
           const { volSteps: r1PurgeVolSteps, fpsCounts: r1CumFrCounts } = computeSteps(sweepPumpObj.id, r1Vol, cumulatedFr);
-          lines.push(`${sweepFirstDelay}\t/${sweepPumpObj.addr}o2V${r1CumFrCounts}D${r1PurgeVolSteps}R\tPurge Reactor 1 volume using Sweep Pump: ${r1Vol}µL at cumulated ${cumulatedFr.toFixed(2)}µL/min`);
+          const cmdFirst = formatPumpCommand(sweepPumpObj.addr, "o2", r1CumFrCounts, "D", r1PurgeVolSteps);
+          lines.push(`${sweepFirstDelay}\t${cmdFirst}\tPurge Reactor 1 volume using Sweep Pump: ${r1Vol}µL at cumulated ${cumulatedFr.toFixed(2)}µL/min`);
 
           const sweepFirstDurationMs = (r1Vol / cumulatedFr) * 60 * 1000;
           elapsedMsStep5 = sweepFirstDurationMs;
@@ -895,7 +906,8 @@ export default function App() {
           const remainingT1Vol = t1 - (b1 + r1Vol);
           if (remainingT1Vol > 0) {
             const { volSteps: remSteps, fpsCounts: remCounts } = computeSteps(sweepPumpObj.id, remainingT1Vol, sweepDeliveryFr);
-            lines.push(`${Math.ceil(sweepFirstDurationMs)}\t/${sweepPumpObj.addr}o2V${remCounts}D${remSteps}R\tSweep remaining T1 capacity with Sweep Pump: ${remainingT1Vol.toFixed(1)}µL at sweep rate ${sweepDeliveryFr}µL/min`);
+            const cmdSecond = formatPumpCommand(sweepPumpObj.addr, "o2", remCounts, "D", remSteps);
+            lines.push(`${Math.ceil(sweepFirstDurationMs)}\t${cmdSecond}\tSweep remaining T1 capacity with Sweep Pump: ${remainingT1Vol.toFixed(1)}µL at sweep rate ${sweepDeliveryFr}µL/min`);
             const sweepSecondDurationMs = (remainingT1Vol / sweepDeliveryFr) * 60 * 1000;
             elapsedMsStep5 = sweepSecondDurationMs;
           }
@@ -928,7 +940,8 @@ export default function App() {
               ? `Synchronized Reaction 2 delivery Sweep Pump ${pump.id}: ${valVol.toFixed(1)}µL at ${valFr}µL/min`
               : `Synchronized Reaction 2 delivery Reactant Pump ${pump.id}: ${valVol.toFixed(1)}µL at ${valFr}µL/min`;
 
-            lines.push(`${step6DelayVal}\t/${pump.addr}${port}V${fpsCounts}D${volSteps}R\t${descStr}`);
+            const cmd = formatPumpCommand(pump.addr, port, fpsCounts, "D", volSteps);
+            lines.push(`${step6DelayVal}\t${cmd}\t${descStr}`);
             step6DelayVal = 0;
             r2InjectCount++;
           }
@@ -950,7 +963,8 @@ export default function App() {
             const valFr = parseFloat(rData.fr) || 0;
             if (valVol > 0 && valFr > 0) {
               const delayVal = turnedR2Others ? 0 : delayAfterR2Delivery;
-              lines.push(`${delayVal}\t/${pump.addr}o7R\tClose non-sweep Reactant Pump ${pump.id} (turn to plugged Port 7)`);
+              const cmd = formatPumpCommand(pump.addr, "o7", 0, "None", 0);
+              lines.push(`${delayVal}\t${cmd}\tClose non-sweep Reactant Pump ${pump.id} (turn to plugged Port 7)`);
               turnedR2Others = true;
             }
           }
@@ -976,14 +990,16 @@ export default function App() {
           }
 
           const { volSteps: r2VolSteps, fpsCounts: r2CumFrCounts } = computeSteps(sweepPumpObj.id, r2Vol, cumulatedR2Fr);
-          lines.push(`${step8DelayVal}\t/${sweepPumpObj.addr}o2V${r2CumFrCounts}D${r2VolSteps}R\tPurge Reactor 2 volume using Sweep Pump: ${r2Vol}µL at cumulated ${cumulatedR2Fr.toFixed(2)}µL/min`);
+          const cmdFirst = formatPumpCommand(sweepPumpObj.addr, "o2", r2CumFrCounts, "D", r2VolSteps);
+          lines.push(`${step8DelayVal}\t${cmdFirst}\tPurge Reactor 2 volume using Sweep Pump: ${r2Vol}µL at cumulated ${cumulatedR2Fr.toFixed(2)}µL/min`);
 
           const r2FirstDurationMs = (r2Vol / cumulatedR2Fr) * 60 * 1000;
 
           const finalSweepVol = fluidics.transfer2Vol + fluidics.sweepVol;
           const { volSteps: finalSweepSteps, fpsCounts: finalSweepCounts } = computeSteps(sweepPumpObj.id, finalSweepVol, sweepDeliveryFr);
           const washDurationMs = (finalSweepVol / sweepDeliveryFr) * 60 * 1000;
-          lines.push(`${Math.ceil(r2FirstDurationMs)}\t/${sweepPumpObj.addr}o2V${finalSweepCounts}D${finalSweepSteps}R\tPost-reaction sweep wash to T2 and Sweep Line: ${finalSweepVol}µL at sweep rate ${sweepDeliveryFr}µL/min`);
+          const cmdSecond = formatPumpCommand(sweepPumpObj.addr, "o2", finalSweepCounts, "D", finalSweepSteps);
+          lines.push(`${Math.ceil(r2FirstDurationMs)}\t${cmdSecond}\tPost-reaction sweep wash to T2 and Sweep Line: ${finalSweepVol}µL at sweep rate ${sweepDeliveryFr}µL/min`);
 
           handlesCompletionInternally = true;
           if (autoSample === "Yes") {
@@ -1103,10 +1119,11 @@ export default function App() {
           const valFr = parseFloat(rData.fr) || 0;
           if (valVol > 0 && valFr > 0) {
             const { volSteps, fpsCounts } = computeSteps(pump.id, valVol, valFr);
+            const cmd = formatPumpCommand(pump.addr, "o5", fpsCounts, "D", volSteps);
             commands.push({
               absTimeMs: 0,
               priority: 2,
-              command: `/${pump.addr}o5V${fpsCounts}D${volSteps}R`,
+              command: cmd,
               desc: `Synchronized co-delivery Reactant Pump ${pump.id}: ${valVol}µL at ${valFr}µL/min`
             });
           }
@@ -1127,10 +1144,11 @@ export default function App() {
             const valFr = parseFloat(rData.fr) || 0;
             if (valVol > 0 && valFr > 0) {
               const { volSteps, fpsCounts } = computeSteps(pump.id, valVol, valFr);
+              const cmd = formatPumpCommand(pump.addr, "o5", fpsCounts, "D", volSteps);
               commands.push({
                 absTimeMs: reachR2Ms,
                 priority: 2,
-                command: `/${pump.addr}o5V${fpsCounts}D${volSteps}R`,
+                command: cmd,
                 desc: `Synchronized Reaction 2 non-sweep Pump ${pump.id}: ${valVol.toFixed(1)}µL at ${valFr}µL/min`
               });
             }
@@ -1151,10 +1169,11 @@ export default function App() {
             const valVol = parseFloat(rData.vol) || 0;
             const valFr = parseFloat(rData.fr) || 0;
             if (valVol > 0 && valFr > 0) {
+              const cmd = formatPumpCommand(pump.addr, "o7", 0, "None", 0);
               commands.push({
                 absTimeMs: maxR1DeliveryTimeMs,
                 priority: 1,
-                command: `/${pump.addr}o7R`,
+                command: cmd,
                 desc: `Close non-sweep Reactant Pump ${pump.id} (turn to plugged Port 7)`
               });
             }
@@ -1163,10 +1182,11 @@ export default function App() {
 
         if (sweepPumpObj) {
           const { volSteps, fpsCounts } = computeSteps(sweepPumpObj.id, sweepBVol, cumulatedFr);
+          const cmd = formatPumpCommand(sweepPumpObj.addr, "o2", fpsCounts, "D", volSteps);
           commands.push({
             absTimeMs: maxR1DeliveryTimeMs,
             priority: 2,
-            command: `/${sweepPumpObj.addr}o2V${fpsCounts}D${volSteps}R`,
+            command: cmd,
             desc: `Sweep pump delivers (R1 + T1) capacity: ${sweepBVol.toFixed(1)}µL at cumulated ${cumulatedFr.toFixed(2)}µL/min via Port 2`
           });
         }
@@ -1185,10 +1205,11 @@ export default function App() {
             const valVol = parseFloat(rData.vol) || 0;
             const valFr = parseFloat(rData.fr) || 0;
             if (valVol > 0 && valFr > 0) {
+              const cmd = formatPumpCommand(pump.addr, "o7", 0, "None", 0);
               commands.push({
                 absTimeMs: sweepEndAbsMs,
                 priority: 1,
-                command: `/${pump.addr}o7R`,
+                command: cmd,
                 desc: `Close non-sweep Reaction 2 Pump ${pump.id} (turn to plugged Port 7)`
               });
             }
@@ -1197,10 +1218,11 @@ export default function App() {
 
         if (sweepPumpObj) {
           const { volSteps, fpsCounts } = computeSteps(sweepPumpObj.id, r2Vol, cumulatedR2Fr);
+          const cmd = formatPumpCommand(sweepPumpObj.addr, "o2", fpsCounts, "D", volSteps);
           commands.push({
             absTimeMs: sweepEndAbsMs,
             priority: 2,
-            command: `/${sweepPumpObj.addr}o2V${fpsCounts}D${volSteps}R`,
+            command: cmd,
             desc: `Purge Reactor 2 volume using Sweep Pump: ${r2Vol.toFixed(1)}µL at cumulated ${cumulatedR2Fr.toFixed(2)}µL/min via Port 2`
           });
         }
@@ -1215,10 +1237,11 @@ export default function App() {
 
         if (sweepPumpObj) {
           const { volSteps, fpsCounts } = computeSteps(sweepPumpObj.id, finalSweepVol, sweepDeliveryFr);
+          const cmd = formatPumpCommand(sweepPumpObj.addr, "o2", fpsCounts, "D", volSteps);
           commands.push({
             absTimeMs: r2SweepEndAbsMs,
             priority: 2,
-            command: `/${sweepPumpObj.addr}o2V${fpsCounts}D${volSteps}R`,
+            command: cmd,
             desc: `Post-reaction sweep wash: ${finalSweepVol.toFixed(1)}µL at sweep rate ${sweepDeliveryFr}µL/min via Port 2`
           });
         }
@@ -1295,7 +1318,7 @@ export default function App() {
         lines.push(`# --- PROCESS STEP: STOP AUTOMATED FRACTION COLLECTION ---`);
         const sp_a = asLogic["Stop Collection"]["A"] === "ON" ? "TRUE" : "FALSE";
         const sp_b = asLogic["Stop Collection"]["B"] === "ON" ? "TRUE" : "FALSE";
-        lines.push(`0\tAUX${auxA} ${sp_a}\tStop fraction collection valve A`);
+        lines.push(`${Math.ceil(finalSweepDurationMs)}\tAUX${auxA} ${sp_a}\tStop fraction collection valve A`);
         lines.push(`0\tAUX${auxB} ${sp_b}\tStop fraction collection valve B`);
       }
 
@@ -1303,7 +1326,7 @@ export default function App() {
       if (autoSample !== "Yes") {
         lines.push("");
         lines.push(`# --- PROCESS STEP: RETRIEVE COLLECTION VIAL ---`);
-        lines.push(`0\tWait\tReaction completed, retrieve collection vial`);
+        lines.push(`${Math.ceil(finalSweepDurationMs)}\tWait\tReaction completed, retrieve collection vial`);
       }
 
       lines.push("");
@@ -1311,7 +1334,13 @@ export default function App() {
       lines.push("# =========================================================");
     }
 
-    const chunk = lines.join("\n");
+    const chunk = lines.map(line => {
+      const trimmed = line.trim();
+      if (trimmed.startsWith("#")) {
+        return `\t\t${trimmed}`;
+      }
+      return line;
+    }).join("\n");
     setMacroContent((prev) => {
       const cleanedPrev = cleanOldMetrics(prev);
       const combinedNoMetrics = cleanedPrev ? cleanedPrev + "\n\n" + chunk : chunk;

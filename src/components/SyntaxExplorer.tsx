@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Cpu, Plus, Settings2, Play, CornerDownRight, Binary, Zap } from "lucide-react";
 import { PumpConfig } from "../types";
-import { formatHeaterCommand } from "../utils";
+import { formatHeaterCommand, formatPumpCommand } from "../utils";
 
 interface SyntaxExplorerProps {
   onInsertCommand?: (cmd: string) => void;
@@ -56,13 +56,7 @@ export default function SyntaxExplorer({
 
   // Generate Pump command string
   const getPumpCommandCode = () => {
-    if (selectedPump.addr === "0" || !selectedPump.addr) {
-      return "# Invalid Pump Address";
-    }
-    const valveStr = valvePos !== "None" ? `o${valvePos}` : "";
-    const speedStr = rateCounts > 0 ? `V${rateCounts}` : "";
-    const actionStr = actionType !== "None" ? `${actionType}${volSteps}` : "";
-    return `/${selectedPump.addr}${valveStr}${speedStr}${actionStr}R`;
+    return formatPumpCommand(selectedPump.addr, valvePos, rateCounts, actionType, volSteps);
   };
 
   const handleInsertPumpLine = () => {

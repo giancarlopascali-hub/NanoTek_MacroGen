@@ -1,5 +1,5 @@
-import React from "react";
-import { Save, Clipboard, Trash2, Play, Terminal, HelpCircle, Code } from "lucide-react";
+import React, { useRef } from "react";
+import { Save, Clipboard, Trash2, Play, Terminal, HelpCircle, Code, Upload } from "lucide-react";
 
 interface MacroIdeProps {
   content: string;
@@ -20,6 +20,8 @@ export default function MacroIde({
   showSuccessMessage,
   onSelectionChange,
 }: MacroIdeProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   // Line counter calculation
   const lines = content.split("\n");
   const lineCount = Math.max(lines.length, 1);
@@ -32,6 +34,27 @@ export default function MacroIde({
   const handleSelection = (e: React.SyntheticEvent<HTMLTextAreaElement>) => {
     const target = e.currentTarget;
     onSelectionChange?.(target.selectionStart, target.selectionEnd);
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result;
+      if (typeof text === "string") {
+        onChangeContent(text);
+        showSuccessMessage(`Macro file "${file.name}" imported successfully!`);
+      }
+    };
+    reader.readAsText(file);
+    // Reset file input value to allow re-importing the same file
+    e.target.value = "";
   };
 
   return (
@@ -74,6 +97,22 @@ export default function MacroIde({
             <Save className="w-3 h-3" />
             Save File
           </button>
+
+          <button
+            onClick={handleImportClick}
+            className="flex items-center gap-1 px-2.5 py-1 bg-[#333333] hover:bg-[#444444] text-[#cccccc] rounded transition-colors text-[11px]"
+            title="Import a .macro, .txt, or .csv file into workspace"
+          >
+            <Upload className="w-3 h-3" />
+            Import File
+          </button>
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            accept=".macro,.txt,.csv"
+            className="hidden"
+          />
 
           <button
             onClick={onClear}
