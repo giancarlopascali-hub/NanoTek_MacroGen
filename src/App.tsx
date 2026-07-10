@@ -577,15 +577,15 @@ export default function App() {
   };
 
   const makeMetricsBlock = (usedVols: Record<number, number>): string => {
-    let block = "# --- WORKSPACE LOOP CAPACITY TRACKING METRICS ---\n";
+    let block = "\t\t\t# --- WORKSPACE LOOP CAPACITY TRACKING METRICS ---\n";
     const activePumps = pumps.filter((p) => p.addr !== "0" && p.addr.trim() !== "");
     activePumps.forEach((p) => {
       const used = usedVols[p.id] || 0;
       const cap = p.loopVol;
       const left = Math.max(0, cap - used);
-      block += `#   - Pump ${p.id} (${p.assignedReactor}${p.sweep === "Yes" ? " Sweep" : " Reagent"}): ${used.toFixed(1)} µL used of ${cap} µL capacity (${left.toFixed(1)} µL left)\n`;
+      block += `\t\t\t#   - Pump ${p.id} (${p.assignedReactor}${p.sweep === "Yes" ? " Sweep" : " Reagent"}): ${used.toFixed(1)} µL used of ${cap} µL capacity (${left.toFixed(1)} µL left)\n`;
     });
-    block += "# =========================================================";
+    block += "\t\t\t# =========================================================";
     return block;
   };
 
@@ -712,9 +712,9 @@ export default function App() {
       if (autoSample === "Yes") {
         const st_a = asLogic["Start Collection"]["A"] === "ON" ? "TRUE" : "FALSE";
         const st_b = asLogic["Start Collection"]["B"] === "ON" ? "TRUE" : "FALSE";
-        lines.push(`${step3DelayVal}\tAUX${auxA} ${st_a}\tStart fraction collection valve A`);
+        lines.push(`${step3DelayVal}\tAUX-${auxA} ${st_a}\tStart fraction collection valve A`);
         step3DelayVal = 0;
-        lines.push(`${step3DelayVal}\tAUX${auxB} ${st_b}\tStart fraction collection valve B`);
+        lines.push(`${step3DelayVal}\tAUX-${auxB} ${st_b}\tStart fraction collection valve B`);
       }
 
       // ALL the pumps connected to R1 (comprising the "sweep" pump) start CONTEMPORARILY
@@ -1005,8 +1005,8 @@ export default function App() {
           if (autoSample === "Yes") {
             const sp_a = asLogic["Stop Collection"]["A"] === "ON" ? "TRUE" : "FALSE";
             const sp_b = asLogic["Stop Collection"]["B"] === "ON" ? "TRUE" : "FALSE";
-            lines.push(`${Math.ceil(washDurationMs)}\tAUX${auxA} ${sp_a}\tStop fraction collection valve A`);
-            lines.push(`0\tAUX${auxB} ${sp_b}\tStop fraction collection valve B`);
+            lines.push(`${Math.ceil(washDurationMs)}\tAUX-${auxA} ${sp_a}\tStop fraction collection valve A`);
+            lines.push(`0\tAUX-${auxB} ${sp_b}\tStop fraction collection valve B`);
           } else {
             lines.push(`${Math.ceil(washDurationMs)}\tWait\tReaction completed, retrieve collection vial`);
           }
@@ -1102,13 +1102,13 @@ export default function App() {
           commands.push({
             absTimeMs: 0,
             priority: 1,
-            command: `AUX${auxA} ${st_a}`,
+            command: `AUX-${auxA} ${st_a}`,
             desc: "Start fraction collection valve A"
           });
           commands.push({
             absTimeMs: 0,
             priority: 1,
-            command: `AUX${auxB} ${st_b}`,
+            command: `AUX-${auxB} ${st_b}`,
             desc: "Start fraction collection valve B"
           });
         }
@@ -1260,13 +1260,13 @@ export default function App() {
           commands.push({
             absTimeMs: totalReactionEndAbsMs,
             priority: 1,
-            command: `AUX${auxA} ${sp_a}`,
+            command: `AUX-${auxA} ${sp_a}`,
             desc: "Stop fraction collection valve A"
           });
           commands.push({
             absTimeMs: totalReactionEndAbsMs,
             priority: 1,
-            command: `AUX${auxB} ${sp_b}`,
+            command: `AUX-${auxB} ${sp_b}`,
             desc: "Stop fraction collection valve B"
           });
         } else {
@@ -1318,8 +1318,8 @@ export default function App() {
         lines.push(`# --- PROCESS STEP: STOP AUTOMATED FRACTION COLLECTION ---`);
         const sp_a = asLogic["Stop Collection"]["A"] === "ON" ? "TRUE" : "FALSE";
         const sp_b = asLogic["Stop Collection"]["B"] === "ON" ? "TRUE" : "FALSE";
-        lines.push(`${Math.ceil(finalSweepDurationMs)}\tAUX${auxA} ${sp_a}\tStop fraction collection valve A`);
-        lines.push(`0\tAUX${auxB} ${sp_b}\tStop fraction collection valve B`);
+        lines.push(`${Math.ceil(finalSweepDurationMs)}\tAUX-${auxA} ${sp_a}\tStop fraction collection valve A`);
+        lines.push(`0\tAUX-${auxB} ${sp_b}\tStop fraction collection valve B`);
       }
 
       // Reference wait retrieved manual sampling option
@@ -1337,7 +1337,7 @@ export default function App() {
     const chunk = lines.map(line => {
       const trimmed = line.trim();
       if (trimmed.startsWith("#")) {
-        return `\t\t${trimmed}`;
+        return `\t\t\t${trimmed}`;
       }
       return line;
     }).join("\n");

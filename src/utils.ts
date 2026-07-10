@@ -35,9 +35,21 @@ export function formatPumpCommand(
   }
 
   if (action !== "None" && action !== "" && steps > 0 && speed > 0 && speed < 60) {
-    const x = Math.round(1000 / speed - 1000 / 700);
-    const y = steps;
-    return `/${addr}${valveStr}gv700${action}1M${x}G${y}R`;
+    const t_step = 1000 / speed;
+    let v = 700;
+    let x = Math.round(t_step - (13 + 1000 / 700));
+    const err700 = Math.abs((13 + 1000 / 700 + x) - t_step);
+
+    let x8 = Math.round(t_step - (13 + 1000 / 800));
+    const err800 = Math.abs((13 + 1000 / 800 + x8) - t_step);
+
+    if (err800 < 0.05 && err700 >= 0.1) {
+      v = 800;
+      x = x8;
+    }
+
+    if (x < 0) x = 0;
+    return `/${addr}${valveStr}gv${v}${action}1M${x}G${steps}R`;
   }
 
   const speedStr = speed > 0 ? `V${speed}` : "";
