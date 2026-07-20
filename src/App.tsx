@@ -558,9 +558,17 @@ export default function App() {
           const pumpObj = pumps.find((p) => p.addr === addr);
           // Only account for volume that has been sent via port 5 (ie not via port 2)
           if (pumpObj && actionCmd.includes("o5")) {
-            const match = actionCmd.match(/D(\d+)/);
-            if (match) {
-              const steps = parseInt(match[1], 10);
+            let steps = 0;
+            const gMatch = actionCmd.match(/G(\d+)/);
+            if (gMatch) {
+              steps = parseInt(gMatch[1], 10);
+            } else {
+              const dMatch = actionCmd.match(/D(\d+)/);
+              if (dMatch) {
+                steps = parseInt(dMatch[1], 10);
+              }
+            }
+            if (steps > 0) {
               const vol = (steps / pumpObj.steps) * pumpObj.syringeVol;
               usedVols[pumpObj.id] = (usedVols[pumpObj.id] || 0) + vol;
             }

@@ -6,8 +6,3 @@ coverage/
 *.log
 .env*
 !.env.example
-
-node_env/
-release/win-unpacked/
-release/*.blockmap
-release/*.yml
