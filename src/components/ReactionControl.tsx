@@ -422,7 +422,7 @@ export default function ReactionControl({
             </label>
             <select
               value={autoSample}
-              onChange={(e) => setAutoSample(e.target.value as any)}
+              onChange={(e) => setAutoSample(e.target.value as "Yes" | "No")}
               className="w-full bg-white border border-gray-300 rounded px-2.5 py-1.5 font-medium focus:ring-1"
             >
               <option value="No">No (Manual vial collection)</option>
