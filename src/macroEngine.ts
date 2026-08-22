@@ -15,6 +15,7 @@ import {
   FLOW_RATE_TOLERANCE,
   DEFAULT_SWEEP_FR,
   DEFAULT_CUMULATED_FR,
+  AUX_IDLE_DELAY_MS,
 } from "./constants";
 
 /**
@@ -412,11 +413,13 @@ export function compileMacro(params: CompileMacroParams): CompileMacroResult {
 
     // Automated sampling start
     if (autoSample === "Yes") {
-      const st_a = asLogic["Start Collection"]["A"] === "ON" ? "TRUE" : "FALSE";
-      const st_b = asLogic["Start Collection"]["B"] === "ON" ? "TRUE" : "FALSE";
+      const st_a = asLogic["Start Collection"]?.["A"] === "ON" ? "TRUE" : "FALSE";
+      const st_b = asLogic["Start Collection"]?.["B"] === "ON" ? "TRUE" : "FALSE";
       lines.push(`${step3DelayVal}\tAUX-${auxA} ${st_a}\tStart fraction collection valve A`);
       step3DelayVal = 0;
       lines.push(`${step3DelayVal}\tAUX-${auxB} ${st_b}\tStart fraction collection valve B`);
+      lines.push(`${AUX_IDLE_DELAY_MS}\tAUX-${auxA} FALSE\tReset fraction collection valve A to Idle (OFF)`);
+      lines.push(`0\tAUX-${auxB} FALSE\tReset fraction collection valve B to Idle (OFF)`);
     }
 
     // R1 pumps contemporary delivery
@@ -536,11 +539,13 @@ export function compileMacro(params: CompileMacroParams): CompileMacroResult {
       }
 
       if (autoSample === "Yes") {
-        const st_a = asLogic["Start Collection"]["A"] === "ON" ? "TRUE" : "FALSE";
-        const st_b = asLogic["Start Collection"]["B"] === "ON" ? "TRUE" : "FALSE";
-        lines.push(`${step3DelayVal}\tAUX${auxA} ${st_a}\tStart fraction collection valve A`);
+        const st_a = asLogic["Start Collection"]?.["A"] === "ON" ? "TRUE" : "FALSE";
+        const st_b = asLogic["Start Collection"]?.["B"] === "ON" ? "TRUE" : "FALSE";
+        lines.push(`${step3DelayVal}\tAUX-${auxA} ${st_a}\tStart fraction collection valve A`);
         step3DelayVal = 0;
-        lines.push(`${step3DelayVal}\tAUX${auxB} ${st_b}\tStart fraction collection valve B`);
+        lines.push(`${step3DelayVal}\tAUX-${auxB} ${st_b}\tStart fraction collection valve B`);
+        lines.push(`${AUX_IDLE_DELAY_MS}\tAUX-${auxA} FALSE\tReset fraction collection valve A to Idle (OFF)`);
+        lines.push(`0\tAUX-${auxB} FALSE\tReset fraction collection valve B to Idle (OFF)`);
       }
 
       let maxR1DeliveryTimeMs = 0;
@@ -697,10 +702,12 @@ export function compileMacro(params: CompileMacroParams): CompileMacroResult {
 
         handlesCompletionInternally = true;
         if (autoSample === "Yes") {
-          const sp_a = asLogic["Stop Collection"]["A"] === "ON" ? "TRUE" : "FALSE";
-          const sp_b = asLogic["Stop Collection"]["B"] === "ON" ? "TRUE" : "FALSE";
+          const sp_a = asLogic["Stop Collection"]?.["A"] === "ON" ? "TRUE" : "FALSE";
+          const sp_b = asLogic["Stop Collection"]?.["B"] === "ON" ? "TRUE" : "FALSE";
           lines.push(`${Math.ceil(washDurationMs)}\tAUX-${auxA} ${sp_a}\tStop fraction collection valve A`);
           lines.push(`0\tAUX-${auxB} ${sp_b}\tStop fraction collection valve B`);
+          lines.push(`${AUX_IDLE_DELAY_MS}\tAUX-${auxA} FALSE\tReset fraction collection valve A to Idle (OFF)`);
+          lines.push(`0\tAUX-${auxB} FALSE\tReset fraction collection valve B to Idle (OFF)`);
         } else {
           lines.push(`${Math.ceil(washDurationMs)}\tWait\tReaction completed, retrieve collection vial`);
         }
@@ -780,8 +787,8 @@ export function compileMacro(params: CompileMacroParams): CompileMacroResult {
       }
 
       if (autoSample === "Yes") {
-        const st_a = asLogic["Start Collection"]["A"] === "ON" ? "TRUE" : "FALSE";
-        const st_b = asLogic["Start Collection"]["B"] === "ON" ? "TRUE" : "FALSE";
+        const st_a = asLogic["Start Collection"]?.["A"] === "ON" ? "TRUE" : "FALSE";
+        const st_b = asLogic["Start Collection"]?.["B"] === "ON" ? "TRUE" : "FALSE";
         commands.push({
           absTimeMs: 0,
           priority: 1,
@@ -793,6 +800,18 @@ export function compileMacro(params: CompileMacroParams): CompileMacroResult {
           priority: 1,
           command: `AUX-${auxB} ${st_b}`,
           desc: "Start fraction collection valve B",
+        });
+        commands.push({
+          absTimeMs: AUX_IDLE_DELAY_MS,
+          priority: 1,
+          command: `AUX-${auxA} FALSE`,
+          desc: "Reset fraction collection valve A to Idle (OFF)",
+        });
+        commands.push({
+          absTimeMs: AUX_IDLE_DELAY_MS,
+          priority: 1,
+          command: `AUX-${auxB} FALSE`,
+          desc: "Reset fraction collection valve B to Idle (OFF)",
         });
       }
 
@@ -938,8 +957,8 @@ export function compileMacro(params: CompileMacroParams): CompileMacroResult {
       });
 
       if (autoSample === "Yes") {
-        const sp_a = asLogic["Stop Collection"]["A"] === "ON" ? "TRUE" : "FALSE";
-        const sp_b = asLogic["Stop Collection"]["B"] === "ON" ? "TRUE" : "FALSE";
+        const sp_a = asLogic["Stop Collection"]?.["A"] === "ON" ? "TRUE" : "FALSE";
+        const sp_b = asLogic["Stop Collection"]?.["B"] === "ON" ? "TRUE" : "FALSE";
         commands.push({
           absTimeMs: totalReactionEndAbsMs,
           priority: 1,
@@ -952,6 +971,18 @@ export function compileMacro(params: CompileMacroParams): CompileMacroResult {
           command: `AUX-${auxB} ${sp_b}`,
           desc: "Stop fraction collection valve B",
         });
+        commands.push({
+          absTimeMs: totalReactionEndAbsMs + AUX_IDLE_DELAY_MS,
+          priority: 1,
+          command: `AUX-${auxA} FALSE`,
+          desc: "Reset fraction collection valve A to Idle (OFF)",
+        });
+        commands.push({
+          absTimeMs: totalReactionEndAbsMs + AUX_IDLE_DELAY_MS,
+          priority: 1,
+          command: `AUX-${auxB} FALSE`,
+          desc: "Reset fraction collection valve B to Idle (OFF)",
+        });
       } else {
         commands.push({
           absTimeMs: totalReactionEndAbsMs,
@@ -961,8 +992,9 @@ export function compileMacro(params: CompileMacroParams): CompileMacroResult {
         });
       }
 
+      const runEndAbsMs = autoSample === "Yes" ? totalReactionEndAbsMs + AUX_IDLE_DELAY_MS : totalReactionEndAbsMs;
       commands.push({
-        absTimeMs: totalReactionEndAbsMs,
+        absTimeMs: runEndAbsMs,
         priority: 3,
         command: `# RUN END\tAdvion NanoTek Macro synthesis execution completed.`,
         desc: "",
@@ -997,10 +1029,12 @@ export function compileMacro(params: CompileMacroParams): CompileMacroResult {
     if (autoSample === "Yes") {
       lines.push("");
       lines.push(`# --- PROCESS STEP: STOP AUTOMATED FRACTION COLLECTION ---`);
-      const sp_a = asLogic["Stop Collection"]["A"] === "ON" ? "TRUE" : "FALSE";
-      const sp_b = asLogic["Stop Collection"]["B"] === "ON" ? "TRUE" : "FALSE";
+      const sp_a = asLogic["Stop Collection"]?.["A"] === "ON" ? "TRUE" : "FALSE";
+      const sp_b = asLogic["Stop Collection"]?.["B"] === "ON" ? "TRUE" : "FALSE";
       lines.push(`${Math.ceil(finalSweepDurationMs)}\tAUX-${auxA} ${sp_a}\tStop fraction collection valve A`);
       lines.push(`0\tAUX-${auxB} ${sp_b}\tStop fraction collection valve B`);
+      lines.push(`${AUX_IDLE_DELAY_MS}\tAUX-${auxA} FALSE\tReset fraction collection valve A to Idle (OFF)`);
+      lines.push(`0\tAUX-${auxB} FALSE\tReset fraction collection valve B to Idle (OFF)`);
     }
 
     if (autoSample !== "Yes") {

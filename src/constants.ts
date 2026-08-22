@@ -35,3 +35,6 @@ export const DEFAULT_SWEEP_FR = 120.0;
 
 /** Default fallback cumulated flow rate in µL/min */
 export const DEFAULT_CUMULATED_FR = 100.0;
+
+/** Inter-step pulse delay in ms before resetting AUX channels to Idle (OFF) */
+export const AUX_IDLE_DELAY_MS = 50;

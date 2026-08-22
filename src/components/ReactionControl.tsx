@@ -470,26 +470,27 @@ export default function ReactionControl({
                 </thead>
                 <tbody className="divide-y divide-gray-100 font-medium text-gray-700">
                   {Object.entries(asLogic).map(([key, item]) => {
-                    const isCustom = key === "Custom";
+                    const isIdle = key === "Idle";
                     return (
-                      <tr key={key}>
+                      <tr key={key} className={isIdle ? "bg-slate-50/70" : ""}>
                         <td className="px-3 py-2">
-                          {isCustom ? (
-                            <input
-                              type="text"
-                              value={item.label}
-                              onChange={(e) => onChangeAuxLogic(key, "label", e.target.value)}
-                              className="bg-slate-50 border border-gray-200 rounded px-1.5 py-0.5 text-xs text-gray-800 shrink-0 font-medium"
-                            />
-                          ) : (
-                            <span className="font-semibold">{key}</span>
+                          <span className="font-semibold">{item.label || key}</span>
+                          {isIdle && (
+                            <span className="ml-2 text-[10px] text-gray-400 font-normal">
+                              (Rest state)
+                            </span>
                           )}
                         </td>
                         <td className="px-3 py-2 text-center">
                           <select
-                            value={item.A}
+                            value={isIdle ? "OFF" : item.A}
+                            disabled={isIdle}
                             onChange={(e) => onChangeAuxLogic(key, "A", e.target.value)}
-                            className="bg-white border border-gray-200 rounded text-xs px-1.5 py-0.5"
+                            className={`border rounded text-xs px-1.5 py-0.5 ${
+                              isIdle
+                                ? "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed"
+                                : "bg-white border-gray-200"
+                            }`}
                           >
                             <option value="OFF">OFF</option>
                             <option value="ON">ON</option>
@@ -497,9 +498,14 @@ export default function ReactionControl({
                         </td>
                         <td className="px-3 py-2 text-center">
                           <select
-                            value={item.B}
+                            value={isIdle ? "OFF" : item.B}
+                            disabled={isIdle}
                             onChange={(e) => onChangeAuxLogic(key, "B", e.target.value)}
-                            className="bg-white border border-gray-200 rounded text-xs px-1.5 py-0.5"
+                            className={`border rounded text-xs px-1.5 py-0.5 ${
+                              isIdle
+                                ? "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed"
+                                : "bg-white border-gray-200"
+                            }`}
                           >
                             <option value="OFF">OFF</option>
                             <option value="ON">ON</option>

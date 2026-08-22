@@ -4,7 +4,7 @@ import { Settings, RefreshCw, Layers, ShieldCheck, Info } from "lucide-react";
 
 interface PumpConfiguratorProps {
   pumps: PumpConfig[];
-  onChangePump: (id: number, field: keyof PumpConfig, value: any) => void;
+  onChangePump: <K extends keyof PumpConfig>(id: number, field: K, value: PumpConfig[K]) => void;
   fluidics: FluidicsConfig;
   onChangeFluidics: (field: keyof FluidicsConfig, value: number) => void;
   hubAddr: string;
@@ -38,6 +38,8 @@ export default function PumpConfigurator({
         <div className="divide-y divide-gray-100 p-2">
           {pumps.map((pump) => {
             const isActive = pump.addr !== "0" && pump.addr.trim() !== "";
+            const isSweepTakenByOther = pumps.some((p) => p.sweep === "Yes" && p.id !== pump.id);
+
             return (
               <div
                 key={pump.id}
@@ -127,7 +129,7 @@ export default function PumpConfigurator({
                       value={pump.assignedReactor}
                       disabled={!isActive}
                       onChange={(e) =>
-                        onChangePump(pump.id, "assignedReactor", e.target.value as any)
+                        onChangePump(pump.id, "assignedReactor", e.target.value as "Reactor 1" | "Reactor 2")
                       }
                       className="w-full bg-white border border-gray-300 rounded px-2 py-0.5 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-400"
                     >
@@ -140,24 +142,19 @@ export default function PumpConfigurator({
                 {/* Sweep designation (Only applicable to Reactor 1) */}
                 <div className="flex items-center gap-2 mt-2 lg:mt-0">
                   <label className="text-xs font-medium text-gray-500">Is Sweep?</label>
-                  {(() => {
-                    const isSweepTakenByOther = pumps.some((p) => p.sweep === "Yes" && p.id !== pump.id);
-                    return (
-                      <select
-                        value={pump.sweep}
-                        disabled={!isActive || pump.assignedReactor === "Reactor 2" || isSweepTakenByOther}
-                        onChange={(e) => onChangePump(pump.id, "sweep", e.target.value as any)}
-                        className={`bg-white border border-gray-300 rounded px-2 py-0.5 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-400 ${
-                          isSweepTakenByOther ? "opacity-60 bg-gray-50" : ""
-                        }`}
-                      >
-                        <option value="No">No</option>
-                        <option value="Yes" disabled={isSweepTakenByOther}>
-                          {isSweepTakenByOther ? "Yes (Limit 1)" : "Yes"}
-                        </option>
-                      </select>
-                    );
-                  })()}
+                  <select
+                    value={pump.sweep}
+                    disabled={!isActive || pump.assignedReactor === "Reactor 2" || isSweepTakenByOther}
+                    onChange={(e) => onChangePump(pump.id, "sweep", e.target.value as "Yes" | "No")}
+                    className={`bg-white border border-gray-300 rounded px-2 py-0.5 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-400 ${
+                      isSweepTakenByOther ? "opacity-60 bg-gray-50" : ""
+                    }`}
+                  >
+                    <option value="No">No</option>
+                    <option value="Yes" disabled={isSweepTakenByOther}>
+                      {isSweepTakenByOther ? "Yes (Limit 1)" : "Yes"}
+                    </option>
+                  </select>
                 </div>
               </div>
             );

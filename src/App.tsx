@@ -82,10 +82,10 @@ export default function App() {
 
   // Auxiliary collection fraction matrix
   const [asLogic, setAsLogic] = useState<Record<string, AUXState>>({
+    "Idle": { label: "Idle", A: "OFF", B: "OFF" },
     "Start Collection": { label: "Start Collection", A: "ON", B: "OFF" },
     "Stop Collection": { label: "Stop Collection", A: "OFF", B: "ON" },
     "Next Sample": { label: "Next Sample", A: "ON", B: "ON" },
-    "Custom": { label: "Custom Status", A: "OFF", B: "OFF" },
   });
 
   // Live Compiled Macro block content
@@ -211,16 +211,16 @@ export default function App() {
   }, [pumps, reactionData["R1"]]);
 
   // Syringe limit check callback
-  const handlePumpChange = (id: number, field: keyof PumpConfig, value: any) => {
+  const handlePumpChange = <K extends keyof PumpConfig>(id: number, field: K, value: PumpConfig[K]) => {
     setPumps((prev) =>
       prev.map((p) => {
         if (p.id === id) {
           const updated = { ...p, [field]: value };
-          if (field === "loopVol" && value > p.syringeVol) {
+          if (field === "loopVol" && typeof value === "number" && value > p.syringeVol) {
             triggerToast(`Warning: Pump ${p.id} Loop volume (${value}µL) cannot exceed Syringe capability (${p.syringeVol}µL). Reset to Syringe Size.`);
             updated.loopVol = p.syringeVol;
           }
-          if (field === "syringeVol" && p.loopVol > value) {
+          if (field === "syringeVol" && typeof value === "number" && p.loopVol > value) {
             updated.loopVol = value;
           }
           if (field === "assignedReactor" && value === "Reactor 2") {
